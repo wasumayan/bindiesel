@@ -25,12 +25,16 @@ os.environ['PYTHONWARNINGS'] = 'ignore'
 import warnings
 warnings.filterwarnings('ignore')
 
+# Store original stderr for filtering
+_original_stderr = sys.stderr
+
 # More aggressive stderr suppression for ALSA/JACK
 # These warnings come from C libraries and are harmless
 class StderrFilter:
     """Filter out ALSA and JACK error messages"""
     def __init__(self, original_stderr):
         self.original_stderr = original_stderr
+        self.filtering_enabled = False
         self.filtered_keywords = [
             'ALSA lib',
             'Cannot connect to server socket',
@@ -44,27 +48,59 @@ class StderrFilter:
             'pcm_dmix'
         ]
     
+    def enable_filtering(self):
+        """Enable filtering of ALSA/JACK warnings"""
+        self.filtering_enabled = True
+    
+    def disable_filtering(self):
+        """Disable filtering to show all output"""
+        self.filtering_enabled = False
+    
     def write(self, message):
-        # Only write if it's not an ALSA/JACK warning
-        message_str = str(message)
-        if not any(keyword in message_str for keyword in self.filtered_keywords):
-            self.original_stderr.write(message)
+        # Only filter if enabled
+        if self.filtering_enabled:
+            message_str = str(message)
+            if any(keyword in message_str for keyword in self.filtered_keywords):
+                return  # Suppress this message
+        self.original_stderr.write(message)
     
     def flush(self):
         self.original_stderr.flush()
 
-# Install stderr filter at module level (before any audio operations)
-_original_stderr = sys.stderr
-sys.stderr = StderrFilter(_original_stderr)
+# Create filter but don't enable it yet
+_stderr_filter = StderrFilter(_original_stderr)
+sys.stderr = _stderr_filter
 
 def list_microphones():
     """List all available microphones"""
     print("\n" + "=" * 70)
     print("Available Microphones:")
     print("=" * 70)
+    
+    try:
+        import pyaudio
+        p = pyaudio.PyAudio()
+        
+        print("\nDetailed device information:")
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info['maxInputChannels'] > 0:  # It's an input device
+                print(f"  Index {i}: {info['name']}")
+                print(f"    Channels: {info['maxInputChannels']}")
+                print(f"    Sample Rate: {info['defaultSampleRate']}")
+                print(f"    Host API: {info['hostApi']}")
+                print()
+        
+        p.terminate()
+    except Exception as e:
+        print(f"Could not get detailed info: {e}")
+    
+    # Also list via speech_recognition
     mic_list = sr.Microphone.list_microphone_names()
+    print("Speech Recognition detected:")
     for i, name in enumerate(mic_list):
         print(f"  {i}: {name}")
+    
     return mic_list
 
 def find_respeaker(mic_list):
