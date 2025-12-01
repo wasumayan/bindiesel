@@ -5,12 +5,57 @@ Goal: Verify ReSpeaker microphone works for voice detection
 No processing, just converts speech to text
 
 Adapted from Pi5 reference: https://wiki.seeedstudio.com/respeaker_lite_pi5/
-Note: Both Pi4 and Pi5 use PipeWire. If needed, run:
-  pw-metadata -n settings 0 clock.force-rate 16000
+Note: Both Pi4 and Pi5 use PipeWire. 
+
+Setup:
+  1. Set sample rate: pw-metadata -n settings 0 clock.force-rate 16000
+  2. (Optional) Install pipewire-jack to reduce JACK warnings:
+     sudo apt-get install pipewire-jack
+     systemctl --user restart pipewire pipewire-pulse
 """
 
 import speech_recognition as sr
 import sys
+import os
+import contextlib
+from io import StringIO
+
+# Suppress ALSA and JACK warnings (they're harmless but noisy)
+os.environ['PYTHONWARNINGS'] = 'ignore'
+import warnings
+warnings.filterwarnings('ignore')
+
+# More aggressive stderr suppression for ALSA/JACK
+# These warnings come from C libraries and are harmless
+class StderrFilter:
+    """Filter out ALSA and JACK error messages"""
+    def __init__(self, original_stderr):
+        self.original_stderr = original_stderr
+        self.filtered_keywords = [
+            'ALSA lib',
+            'Cannot connect to server socket',
+            'jack server is not running',
+            'JackShmReadWritePtr',
+            'Unknown PCM',
+            'Unable to find definition',
+            'snd_func_refer',
+            'snd_pcm_open',
+            'pcm_asym',
+            'pcm_dmix'
+        ]
+    
+    def write(self, message):
+        # Only write if it's not an ALSA/JACK warning
+        message_str = str(message)
+        if not any(keyword in message_str for keyword in self.filtered_keywords):
+            self.original_stderr.write(message)
+    
+    def flush(self):
+        self.original_stderr.flush()
+
+# Install stderr filter at module level (before any audio operations)
+_original_stderr = sys.stderr
+sys.stderr = StderrFilter(_original_stderr)
 
 def list_microphones():
     """List all available microphones"""

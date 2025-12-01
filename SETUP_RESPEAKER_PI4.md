@@ -33,6 +33,23 @@ default.clock.rate = 16000
 systemctl --user restart pipewire
 ```
 
+### 2a. Enable PipeWire JACK Compatibility (Optional - Reduces Warnings)
+
+PipeWire can act as a JACK server, which reduces JACK connection warnings:
+
+```bash
+# Check if PipeWire JACK is installed
+dpkg -l | grep pipewire-jack
+
+# If not installed, install it:
+sudo apt-get install pipewire-jack
+
+# Restart PipeWire services
+systemctl --user restart pipewire pipewire-pulse pipewire-media-session
+```
+
+This allows PyAudio to connect via JACK interface to PipeWire, eliminating JACK warnings.
+
 ### 3. Verify ReSpeaker Connection
 
 ```bash
