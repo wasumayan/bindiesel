@@ -3,7 +3,21 @@ Vision-based person detection and tracking using Raspberry Pi Camera Module 3
 Uses OpenCV and YOLO or MediaPipe for person detection
 """
 
-import cv2
+# Fix OpenCV import if needed
+try:
+    import cv2
+except ImportError:
+    import sys
+    import os
+    system_paths = [
+        '/usr/lib/python3/dist-packages',
+        '/usr/local/lib/python3/dist-packages',
+    ]
+    for path in system_paths:
+        if os.path.exists(path) and path not in sys.path:
+            sys.path.insert(0, path)
+    import cv2
+
 import numpy as np
 from typing import Optional, Tuple
 import time
@@ -36,7 +50,7 @@ class PersonTracker:
                 self.use_mediapipe = True
                 print("Using MediaPipe for person detection")
             except ImportError:
-                print("MediaPipe not installed, falling back to OpenCV")
+                print("MediaPipe not installed, falling back to OpenCV HOG detector")
                 self.use_mediapipe = False
         else:
             self.use_mediapipe = False

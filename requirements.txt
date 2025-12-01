@@ -2,8 +2,8 @@ numpy>=1.21.0
 scipy>=1.7.0
 pyaudio>=0.2.11
 pyserial>=3.5
-opencv-python>=4.5.0
-opencv-contrib-python>=4.5.0
-mediapipe>=0.10.0
 SpeechRecognition>=3.10.0
+# OpenCV and MediaPipe - install separately (see installation notes)
+# opencv-python>=4.5.0  # Use system package: sudo apt-get install python3-opencv
+# mediapipe>=0.10.0     # Optional - system will fall back to OpenCV HOG if not available
 

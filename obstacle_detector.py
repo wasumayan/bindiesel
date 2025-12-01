@@ -3,7 +3,21 @@ Obstacle detection using camera for navigation
 Uses depth estimation or object detection to avoid obstacles
 """
 
-import cv2
+# Fix OpenCV import if needed
+try:
+    import cv2
+except ImportError:
+    import sys
+    import os
+    system_paths = [
+        '/usr/lib/python3/dist-packages',
+        '/usr/local/lib/python3/dist-packages',
+    ]
+    for path in system_paths:
+        if os.path.exists(path) and path not in sys.path:
+            sys.path.insert(0, path)
+    import cv2
+
 import numpy as np
 from typing import List, Tuple, Optional
 

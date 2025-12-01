@@ -3,7 +3,26 @@
 Main control script for vision-based navigation with natural language commands
 """
 
-import cv2
+# Fix OpenCV import if needed
+try:
+    import cv2
+except ImportError:
+    import sys
+    import os
+    system_paths = [
+        '/usr/lib/python3/dist-packages',
+        '/usr/local/lib/python3/dist-packages',
+    ]
+    for path in system_paths:
+        if os.path.exists(path) and path not in sys.path:
+            sys.path.insert(0, path)
+    try:
+        import cv2
+    except ImportError:
+        print("ERROR: OpenCV not found!")
+        print("Install with: sudo apt-get install python3-opencv")
+        sys.exit(1)
+
 import signal
 import sys
 import time
