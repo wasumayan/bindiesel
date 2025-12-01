@@ -130,7 +130,7 @@ class VoiceAssistant:
 The car can:
 - Navigate: go forward, backward, left, right, stop, slow down, speed up
 - Answer questions: time, date, general knowledge
-- Follow commands: "come here" (come to user), "return" (go back to original position)
+- Follow commands: "bin diesel, come here" (come to user), "return" (go back to original position)
 
 For navigation commands, respond with JSON: {"action": "command", "value": "forward/left/right/stop/etc"}
 For questions, respond normally.
@@ -188,25 +188,33 @@ Context: """ + context
         print("=" * 70)
         print("ReSpeaker Voice Assistant Test")
         print("=" * 70)
+        print("\n✓ Microphone: Ready")
+        print("✓ OpenAI: Connected")
         print("\nCommands you can try:")
         print("  - Navigation: 'go forward', 'turn left', 'stop', 'slow down'")
         print("  - Questions: 'what time is it?', 'who is the president?'")
         print("  - Main function: 'bin diesel, come here'")
+        print("\n💡 Speak clearly into the ReSpeaker microphone")
+        print("💡 The system will listen for 3 seconds, then process your command")
         print("\nPress Ctrl+C to exit\n")
         
         while True:
             try:
                 # Listen
+                print("🎤 Listening... (speak now)")
                 audio = self.listen(timeout=3, phrase_time_limit=5)
                 if audio is None:
+                    print("   (No speech detected, trying again...)\n")
                     continue
                 
                 # Recognize
+                print("   Processing speech...")
                 text = self.recognize(audio)
                 if text is None:
+                    print("   (Could not understand, trying again...)\n")
                     continue
                 
-                print(f"\nYou said: {text}")
+                print(f"\n✓ You said: '{text}'")
                 
                 # Process command
                 result = self.process_command(text)

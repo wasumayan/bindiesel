@@ -59,13 +59,20 @@ arecord -d 5 -f cd test.wav
 aplay test.wav
 ```
 
-**On Raspberry Pi 4 (ALSA):**
-The ReSpeaker should automatically appear as a USB audio device. The system will auto-detect it.
+**On Raspberry Pi 4 (PipeWire):**
+Both Pi4 and Pi5 use PipeWire. Configure sample rate:
+```bash
+pw-metadata -n settings 0 clock.force-rate 16000
+```
+
+For permanent change, edit `/etc/pipewire/pipewire.conf` and set `default.clock.rate = 16000`
 
 **Troubleshooting:**
 - If ReSpeaker not detected: `lsusb` to check USB connection
-- Check ALSA: `aplay -l` and `arecord -l`
+- Check audio devices: `aplay -l` and `arecord -l`
+- Check PipeWire: `systemctl --user status pipewire`
 - Permissions: `sudo usermod -a -G audio $USER` (logout/login)
+- ALSA warnings are usually harmless (PipeWire handles audio)
 
 ### 4. Setup OpenAI API Key
 
