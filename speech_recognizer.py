@@ -1,0 +1,199 @@
+"""
+Speech recognition for natural language commands
+Supports both online (Google) and offline (Vosk) recognition
+"""
+
+import speech_recognition as sr
+from typing import Optional, Callable
+import threading
+import queue
+
+
+class SpeechRecognizer:
+    """Handles speech recognition for natural language commands"""
+    
+    def __init__(self, method: str = 'vosk', wake_word: str = 'bin diesel'):
+        """
+        Initialize speech recognizer
+        
+        Args:
+            method: 'vosk' (offline) or 'google' (online, requires internet)
+            wake_word: Word/phrase to activate command listening
+        """
+        self.method = method
+        self.wake_word = wake_word.lower()
+        self.recognizer = sr.Recognizer()
+        self.microphone = None
+        self.is_listening = False
+        self.command_queue = queue.Queue()
+        self.callback: Optional[Callable[[str], None]] = None
+        
+        # Initialize microphone
+        try:
+            self.microphone = sr.Microphone()
+            # Adjust for ambient noise
+            with self.microphone as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            print(f"Microphone initialized for speech recognition")
+        except Exception as e:
+            print(f"Warning: Could not initialize microphone: {e}")
+    
+    def recognize_command(self, audio) -> Optional[str]:
+        """
+        Recognize command from audio
+        
+        Args:
+            audio: Audio data from microphone
+            
+        Returns:
+            Recognized command text or None
+        """
+        try:
+            if self.method == 'google':
+                text = self.recognizer.recognize_google(audio)
+            elif self.method == 'vosk':
+                # Vosk requires different setup
+                # For now, fall back to Google or use vosk library directly
+                try:
+                    text = self.recognizer.recognize_vosk(audio)
+                except:
+                    text = self.recognizer.recognize_google(audio)
+            else:
+                text = self.recognizer.recognize_google(audio)
+            
+            return text.lower()
+        except sr.UnknownValueError:
+            return None
+        except sr.RequestError as e:
+            print(f"Speech recognition error: {e}")
+            return None
+    
+    def listen_for_wake_word(self, timeout: float = 1.0):
+        """
+        Listen for wake word
+        
+        Args:
+            timeout: Timeout in seconds
+            
+        Returns:
+            True if wake word detected
+        """
+        if self.microphone is None:
+            return False
+        
+        try:
+            with self.microphone as source:
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=2)
+            
+            text = self.recognize_command(audio)
+            if text and self.wake_word in text:
+                return True
+        except sr.WaitTimeoutError:
+            pass
+        except Exception as e:
+            print(f"Error listening for wake word: {e}")
+        
+        return False
+    
+    def listen_for_command(self, timeout: float = 5.0) -> Optional[str]:
+        """
+        Listen for command after wake word
+        
+        Args:
+            timeout: Timeout in seconds
+            
+        Returns:
+            Command text or None
+        """
+        if self.microphone is None:
+            return None
+        
+        try:
+            print("Listening for command...")
+            with self.microphone as source:
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=5)
+            
+            command = self.recognize_command(audio)
+            return command
+        except sr.WaitTimeoutError:
+            print("No command detected")
+            return None
+        except Exception as e:
+            print(f"Error listening for command: {e}")
+            return None
+    
+    def process_command(self, command: str) -> dict:
+        """
+        Process natural language command and extract intent
+        
+        Args:
+            command: Recognized command text
+            
+        Returns:
+            Dictionary with intent and parameters
+        """
+        command = command.lower()
+        
+        # Remove wake word if present
+        if self.wake_word in command:
+            command = command.replace(self.wake_word, '').strip()
+        
+        intent = {
+            'action': None,
+            'target': None,
+            'direction': None
+        }
+        
+        # Parse common commands
+        if 'come here' in command or 'come to me' in command or 'follow' in command:
+            intent['action'] = 'follow'
+            intent['target'] = 'person'
+        elif 'stop' in command or 'halt' in command:
+            intent['action'] = 'stop'
+        elif 'go' in command or 'move' in command:
+            intent['action'] = 'move'
+            if 'forward' in command or 'ahead' in command:
+                intent['direction'] = 'forward'
+            elif 'back' in command or 'backward' in command:
+                intent['direction'] = 'backward'
+            elif 'left' in command:
+                intent['direction'] = 'left'
+            elif 'right' in command:
+                intent['direction'] = 'right'
+        elif 'turn' in command:
+            intent['action'] = 'turn'
+            if 'left' in command:
+                intent['direction'] = 'left'
+            elif 'right' in command:
+                intent['direction'] = 'right'
+        
+        return intent
+    
+    def start_listening_thread(self, callback: Callable[[str], None]):
+        """
+        Start background thread listening for commands
+        
+        Args:
+            callback: Function to call when command detected
+        """
+        self.callback = callback
+        self.is_listening = True
+        
+        def listen_loop():
+            while self.is_listening:
+                if self.listen_for_wake_word(timeout=1.0):
+                    print(f"Wake word '{self.wake_word}' detected!")
+                    command = self.listen_for_command(timeout=5.0)
+                    if command:
+                        print(f"Command: {command}")
+                        if self.callback:
+                            self.callback(command)
+        
+        thread = threading.Thread(target=listen_loop, daemon=True)
+        thread.start()
+        print("Speech recognition thread started")
+    
+    def stop_listening(self):
+        """Stop listening thread"""
+        self.is_listening = False
+
