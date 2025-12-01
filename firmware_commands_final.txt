@@ -1,0 +1,37 @@
+# ReSpeaker Lite Firmware Update - Final Commands
+# Based on official guide: https://github.com/respeaker/ReSpeaker_Lite/blob/master/xmos_firmwares/dfu_guide.md
+
+# Step 1: Clone repo and find firmware
+cd ~/Downloads
+rm -rf ReSpeaker_Lite
+git clone https://github.com/respeaker/ReSpeaker_Lite.git
+cd ReSpeaker_Lite/xmos_firmwares
+ls -lh *.bin
+
+# Find USB firmware (look for file with "usb" in name)
+# Copy it to Downloads
+cp *usb*.bin ~/Downloads/ 2>/dev/null || echo "USB firmware not found, check files above"
+cd ~/Downloads
+
+# Step 2: Enter DFU Mode (MANUAL):
+# 1. Unplug USB from ReSpeaker
+# 2. Hold button on ReSpeaker
+# 3. Plug in USB while holding
+# 4. Release button after 2-3 seconds
+# IMPORTANT: Use XMOS USB-C port (near 3.5mm jack)
+
+# Check DFU mode:
+dfu-util -l
+# Should show "DFU" devices
+
+# Step 3: Flash firmware (replace filename with actual USB firmware name)
+# Format from official guide: dfu-util -R -e -a 1 -D firmware.bin
+cd ~/Downloads
+sudo dfu-util -R -e -a 1 -D respeaker_lite_usb_xmos_v2.0.7.bin
+
+# Step 4: Restart device (MANUAL):
+# Unplug, wait 2 seconds, plug back in
+
+# Step 5: Test
+cd ~/angleestimationbindiesel
+python3 test_stereo_recording.py
