@@ -40,20 +40,25 @@ class SpeechRecognizer:
         self.command_queue = queue.Queue()
         self.callback: Optional[Callable[[str], None]] = None
         
-        # Initialize microphone
+        # Initialize microphone for voice commands
+        # Note: This is separate from ReSpeaker I2S (which is for TDOA)
+        # Voice commands can use: built-in Pi mic, USB mic, or default system mic
         if not SPEECH_RECOGNITION_AVAILABLE:
             self.microphone = None
             print("Speech recognition not available - voice commands disabled")
             return
             
         try:
+            # Use default system microphone (separate from ReSpeaker I2S)
+            # This could be: built-in Pi mic, USB mic, or any other input device
             self.microphone = sr.Microphone()
             # Adjust for ambient noise
             with self.microphone as source:
                 self.recognizer.adjust_for_ambient_noise(source, duration=1)
-            print(f"Microphone initialized for speech recognition")
+            print(f"Microphone initialized for speech recognition (separate from ReSpeaker I2S)")
         except Exception as e:
             print(f"Warning: Could not initialize microphone: {e}")
+            print("Voice commands will be disabled, but you can use keyboard controls")
             self.microphone = None
     
     def recognize_command(self, audio) -> Optional[str]:
