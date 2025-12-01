@@ -60,17 +60,56 @@ def test_audio_levels(stream, duration=3):
         if chunk_count % 10 == 0:
             left_bars = int(np.abs(left).max() * 30)
             right_bars = int(np.abs(right).max() * 30)
+            
+            # Check if channels are identical
+            are_identical = np.array_equal(left, right)
+            diff = np.abs(left - right).max() if not are_identical else 0
+            
+            status = "⚠ IDENTICAL" if are_identical else "✓ DIFFERENT"
             print(f"Chunk {chunk_count:3d} | "
                   f"Left: {'█' * left_bars:<30} ({np.abs(left).max():.4f}) | "
-                  f"Right: {'█' * right_bars:<30} ({np.abs(right).max():.4f})")
+                  f"Right: {'█' * right_bars:<30} ({np.abs(right).max():.4f}) | "
+                  f"{status} (diff={diff:.6f})")
     
     print(f"\nMax levels: Left={max_left:.4f}, Right={max_right:.4f}")
+    
+    # Check if channels are identical
+    print("\n" + "-" * 70)
+    print("Channel Analysis:")
+    print("-" * 70)
+    
+    # Re-read a sample to check
+    data = stream.read(CHUNK_SIZE, exception_on_overflow=False)
+    audio = np.frombuffer(data, dtype=np.int16)
+    audio = audio.reshape(-1, 2)
+    left_sample = audio[:, 0]
+    right_sample = audio[:, 1]
+    
+    are_identical = np.array_equal(left_sample, right_sample)
+    correlation = np.corrcoef(left_sample, right_sample)[0, 1] if len(left_sample) > 1 else 1.0
+    
+    print(f"Channels identical: {are_identical}")
+    print(f"Channel correlation: {correlation:.6f}")
+    
+    if are_identical or correlation > 0.99:
+        print("\n❌ CRITICAL PROBLEM: Channels are identical!")
+        print("   This means the device is outputting MONO (same signal to both channels).")
+        print("   TDOA cannot work with identical channels - angles will always be 0°.")
+        print("\n   Possible causes:")
+        print("   1. ReSpeaker is configured for mono output")
+        print("   2. USB audio device mode issue")
+        print("   3. Device needs special drivers or configuration")
+        print("\n   Try:")
+        print("   - Check ReSpeaker configuration/firmware")
+        print("   - Run: arecord -D hw:3,0 -f S16_LE -r 16000 -c 2 -d 5 test.wav")
+        print("   - Check if device has a stereo/mono switch")
+        return False
     
     if max_left < 0.01 or max_right < 0.01:
         print("⚠ WARNING: Low audio levels! Check microphone connections.")
         return False
     else:
-        print("✓ Microphones are receiving audio!")
+        print("✓ Microphones are receiving audio and channels are different!")
         return True
 
 
