@@ -27,6 +27,11 @@ except ImportError:
 import numpy as np
 import time
 import argparse
+import os
+
+# Suppress GStreamer warnings (they're harmless but noisy)
+os.environ['GST_DEBUG'] = '0'
+os.environ['GST_DEBUG_NO_COLOR'] = '1'
 
 
 class ColorFlagDetector:
@@ -262,14 +267,95 @@ def main():
     # Initialize detector
     detector = ColorFlagDetector(color=args.color, horizontal_fov=args.fov)
     
-    # Initialize camera
-    cap = cv2.VideoCapture(args.camera)
-    if not cap.isOpened():
-        print(f"Error: Could not open camera {args.camera}")
+    # Initialize camera - try different backends
+    print("Opening camera...")
+    cap = None
+    
+    # Try V4L2 backend first (more reliable on Linux/Raspberry Pi)
+    # Check if CAP_V4L2 is available (it might not be on all systems)
+    backends_to_try = []
+    if hasattr(cv2, 'CAP_V4L2'):
+        backends_to_try.append((cv2.CAP_V4L2, "V4L2"))
+    backends_to_try.append((cv2.CAP_ANY, "ANY (auto-detect)"))
+    
+    for backend_id, backend_name in backends_to_try:
+        print(f"Trying {backend_name} backend...")
+        try:
+            cap = cv2.VideoCapture(args.camera, backend_id)
+            if cap.isOpened():
+                # Test if we can actually read a frame
+                ret, test_frame = cap.read()
+                if ret and test_frame is not None:
+                    print(f"✓ Camera opened successfully with {backend_name} backend!")
+                    break
+                else:
+                    print(f"  Camera opened but cannot read frames, trying next backend...")
+                    cap.release()
+                    cap = None
+        except Exception as e:
+            print(f"  Error with {backend_name}: {e}")
+            if cap:
+                cap.release()
+                cap = None
+    
+    if cap is None or not cap.isOpened():
+        print(f"\nTrying default backend as last resort...")
+        cap = cv2.VideoCapture(args.camera)
+        if cap.isOpened():
+            ret, test_frame = cap.read()
+            if ret and test_frame is not None:
+                print("✓ Camera opened with default backend")
+            else:
+                cap.release()
+                cap = None
+    
+    if cap is None or not cap.isOpened():
+        print(f"\nError: Could not open camera {args.camera} with any backend")
+        print("Trying to list available cameras...")
+        # Try to find available camera
+        for i in range(5):
+            # Try V4L2 if available, otherwise default
+            backend = cv2.CAP_V4L2 if hasattr(cv2, 'CAP_V4L2') else cv2.CAP_ANY
+            test_cap = cv2.VideoCapture(i, backend)
+            if test_cap.isOpened():
+                ret, _ = test_cap.read()
+                if ret:
+                    print(f"Found working camera at index {i}")
+                test_cap.release()
         return
     
+    print("Camera opened successfully!")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
+    
+    # Verify actual resolution
+    actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Camera resolution: {actual_width}x{actual_height}")
+    
+    # Test reading a frame
+    print("Testing frame capture...")
+    ret, test_frame = cap.read()
+    if not ret or test_frame is None:
+        print("ERROR: Cannot read frames from camera!")
+        print("This might indicate:")
+        print("  - Camera is being used by another application")
+        print("  - Camera hardware issue")
+        print("  - Driver/permission problem")
+        cap.release()
+        return
+    print(f"Frame test successful! Frame shape: {test_frame.shape}")
+    
+    # Check if display is available
+    try:
+        cv2.namedWindow('test', cv2.WINDOW_NORMAL)
+        cv2.destroyWindow('test')
+        print("Display available - video window will be shown")
+    except:
+        print("WARNING: No display available - video window cannot be shown")
+        print("Running in headless mode (terminal updates only)")
+    
+    print("Starting video stream...\n")
     
     # FPS calculation
     frame_count = 0
@@ -277,15 +363,26 @@ def main():
     fps = 0.0
     
     # Detection tracking for terminal updates (update every N frames)
-    last_terminal_update = 0
-    terminal_update_interval = 10  # Update terminal every 10 frames
+    last_terminal_update = -1  # Start at -1 so first frame always updates
+    terminal_update_interval = 5  # Update terminal every 5 frames (more frequent)
+    
+    print("Entering main loop...")
+    print("(If you don't see updates, the loop may not be running)\n")
     
     try:
         while True:
             ret, frame = cap.read()
             if not ret:
-                print("Error: Failed to read frame")
+                print("\nError: Failed to read frame from camera")
+                print("This might indicate:")
+                print("  - Camera is being used by another application")
+                print("  - Camera permissions issue")
+                print("  - Camera hardware issue")
                 break
+            
+            if frame is None or frame.size == 0:
+                print("\nError: Received empty frame")
+                continue
             
             frame_count += 1
             
@@ -312,15 +409,20 @@ def main():
             draw_detection(frame, flag_data, angle, detector.color)
             
             # Show video
-            if args.show_mask:
-                # Show mask alongside frame
-                mask_colored = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-                combined = np.hstack([frame, mask_colored])
-                cv2.imshow('Camera - Color Detection (Press q to quit)', combined)
-            else:
-                cv2.imshow('Camera - Color Detection (Press q to quit)', frame)
+            try:
+                if args.show_mask:
+                    # Show mask alongside frame
+                    mask_colored = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+                    combined = np.hstack([frame, mask_colored])
+                    cv2.imshow('Camera - Color Detection (Press q to quit)', combined)
+                else:
+                    cv2.imshow('Camera - Color Detection (Press q to quit)', frame)
+            except Exception as e:
+                print(f"\nError displaying video: {e}")
+                print("Make sure you have a display available (X11 forwarding if SSH)")
+                break
             
-            # Handle keyboard input
+            # Handle keyboard input (waitKey is required for imshow to work)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 break

@@ -1,3 +1,25 @@
 
 # Environment variables
 .env
+
+# Wake word reference files (user-specific recordings)
+wake_word_reference.wav
+*.wav
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

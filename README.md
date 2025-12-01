@@ -37,6 +37,9 @@ sudo apt-get install -y python3-pip python3-opencv libopencv-dev portaudio19-dev
 
 # Python packages
 pip3 install -r requirements.txt
+
+# Optional: For better wake word detection
+pip3 install librosa
 ```
 
 ### 2. Enable Camera
@@ -46,21 +49,32 @@ sudo raspi-config
 # Interface Options → Camera → Enable
 ```
 
-### 3. Set OpenAI API Key
+### 3. Set Up Wake Word (NEW - Simple Implementation)
+
+The simple implementation (`bindieselsimple.py`) uses audio file comparison instead of Google Speech Recognition:
 
 ```bash
-export OPENAI_API_KEY='your-api-key-here'
-# Or create .env file (see .env.example)
+# Record your wake word (e.g., "bin diesel")
+python3 record_wake_word.py
+
+# Run the simple implementation
+python3 bindieselsimple.py
 ```
+
+See [SETUP_WAKE_WORD.md](SETUP_WAKE_WORD.md) for detailed instructions.
 
 ### 4. Run System
 
 ```bash
-# Main vision navigation system
+# Simple implementation (recommended for testing)
+python3 bindieselsimple.py
+
+# Or full vision navigation system
 python3 vision_main.py
 
-# Or test components individually:
+# Test components individually:
 python3 test_camera_basic.py        # Test camera
+python3 camerasimple.py             # Test camera with color detection
 python3 test_respeaker_openai.py    # Test voice + OpenAI
 ```
 
@@ -97,7 +111,10 @@ Say the wake word followed by a command:
 
 ```
 .
-├── vision_main.py              # Main entry point
+├── bindieselsimple.py          # Simple implementation (wake word + flag detection)
+├── record_wake_word.py         # Record wake word reference audio
+├── camerasimple.py             # Camera test with color flag detection
+├── vision_main.py              # Main entry point (full system)
 ├── vision_navigator.py         # Navigation controller
 ├── vision_person_tracker.py    # Person detection & tracking
 ├── obstacle_detector.py        # Obstacle detection
@@ -107,6 +124,7 @@ Say the wake word followed by a command:
 ├── test_respeaker_openai.py    # Voice + OpenAI test
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # This file
+├── SETUP_WAKE_WORD.md          # Wake word setup guide
 ├── VISION_NAVIGATION_README.md # Detailed system guide
 └── OBSTACLE_AVOIDANCE_RESEARCH.md # Obstacle avoidance research
 ```
