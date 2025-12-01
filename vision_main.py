@@ -6,6 +6,7 @@ Main control script for vision-based navigation with natural language commands
 import cv2
 import signal
 import sys
+import time
 from vision_navigator import VisionNavigator
 from speech_recognizer import SpeechRecognizer
 
