@@ -21,6 +21,9 @@ sudo apt-get install -y \
     python3-pyaudio \
     python3-numpy \
     python3-serial \
+    python3-picamera2 \
+    libcamera-apps \
+    v4l-utils \
     libcamera-apps \
     v4l-utils
 
