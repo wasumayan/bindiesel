@@ -209,3 +209,5 @@ sudo usermod -a -G video,audio $USER
 - Default wake word file: `wake_word_reference.wav`
 - Default similarity threshold: 0.6 (60% match required)
 
+
+
