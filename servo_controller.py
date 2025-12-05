@@ -106,6 +106,7 @@ class ServoController:
     
     def center(self):
         """Center the servo"""
+        print("Center")
         self.set_position(0.0)
     
     def turn_left(self, amount=1.0):
@@ -115,6 +116,7 @@ class ServoController:
         Args:
             amount: Turn amount from 0.0 (no turn) to 1.0 (full left)
         """
+        print("Turning left")
         self.set_position(-amount)
     
     def turn_right(self, amount=1.0):
@@ -124,6 +126,7 @@ class ServoController:
         Args:
             amount: Turn amount from 0.0 (no turn) to 1.0 (full right)
         """
+        print("Turning right")
         self.set_position(amount)
     
     def set_angle(self, angle_degrees):
