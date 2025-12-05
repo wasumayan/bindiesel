@@ -1,181 +1,75 @@
-# Vision-Based Autonomous Navigation System
+# Bin Diesel Current System
 
-An autonomous car navigation system using Raspberry Pi Camera Module 3 for person following with obstacle avoidance, controlled via natural language voice commands.
+Complete autonomous and manual control system for Bin Diesel car.
 
-## System Overview
+## System Architecture
 
-```
-Camera → Person Detection → Navigation Logic → PSoC → Car Motors
-         ↓
-    Obstacle Detection
-         ↓
-    Safe Path Planning
-```
-
-**Features:**
-- **Person Following**: Detects and tracks people using computer vision
-- **Obstacle Avoidance**: Avoids obstacles while navigating
-- **Natural Language Commands**: Voice control via ReSpeaker mic array + OpenAI
-- **PSoC Integration**: Sends speed and direction commands to PSoC for car control
-
-## Hardware Requirements
-
-- Raspberry Pi 4
-- Raspberry Pi Camera Module 3
-- ReSpeaker Lite 2-mic array (USB)
-- PSoC 5 (for PWM control)
-- USB-to-Serial adapter (if needed)
+See `ARCHITECTURE.md` for detailed system design.
 
 ## Quick Start
 
-### 1. Install Dependencies
-
+1. **Set up environment variables:**
 ```bash
-# System packages
-sudo apt-get update
-sudo apt-get install -y python3-pip python3-opencv libopencv-dev portaudio19-dev python3-pyaudio
-
-# Python packages
-pip3 install -r requirements.txt
-
-# Optional: For better wake word detection
-pip3 install librosa
+cp .env.example .env
+nano .env  # Add your PICOVOICE_ACCESS_KEY and OPENAI_API_KEY
 ```
 
-### 2. Enable Camera (Raspberry Pi)
-
+2. **Install dependencies:**
 ```bash
-sudo raspi-config
-# Interface Options → Camera → Enable
-# Reboot after enabling
-
-# Test libcamera (should show preview)
-libcamera-hello
+pip3 install --break-system-packages -r requirements.txt
 ```
 
-The system uses **libcamera** (via V4L2 backend) for camera access, which is the modern camera stack for Raspberry Pi. See [libcamera documentation](https://github.com/raspberrypi/libcamera) for more details.
-
-### 3. Set Up Wake Word (Using Picovoice Porcupine)
-
-The simple implementation (`bindieselsimple.py`) uses Picovoice Porcupine for professional wake word detection:
-
+3. **Test individual components:**
 ```bash
-# Get your free AccessKey from https://console.picovoice.ai/
-export PICOVOICE_ACCESS_KEY='your-access-key-here'
-
-# Run the simple implementation
-python3 bindieselsimple.py
+python3 test_wake_word.py      # Test wake word
+python3 test_visual_detection.py  # Test camera + person detection
+python3 test_voice_commands.py   # Test voice recognition
+# etc.
 ```
 
-See [SETUP.md](SETUP.md) for detailed instructions.
-
-### 4. Run System
-
+4. **Run the full system:**
 ```bash
-# Simple implementation (recommended for testing)
-python3 bindieselsimple.py
-
-# Or full vision navigation system
-python3 vision_main.py
-
-# Test components individually:
-python3 test_camera_basic.py        # Test camera
-python3 camerasimple.py             # Test camera with color detection
-python3 test_respeaker_openai.py    # Test voice + OpenAI
+python3 main.py
 ```
 
-## Usage
+**See `SETUP_AND_TESTING.md` for detailed setup and testing instructions.**
 
-### Basic Usage
+## Features
 
-```bash
-python3 vision_main.py
-```
+### Autonomous Mode
+1. Wake word: "bin diesel"
+2. Arm raising detection → car follows user
+3. TOF sensor stops car at 7-8cm from user
+4. Auto-return to starting position after trash collection
 
-### Command Line Options
+### Manual Mode
+1. Say "manual mode" after wake word
+2. Voice commands: FORWARD, LEFT, RIGHT, STOP, TURN AROUND
+3. Uses GPT API for voice recognition
 
-```bash
-python3 vision_main.py \
-    --port /dev/ttyUSB0 \      # PSoC serial port
-    --baudrate 115200 \         # Serial baud rate
-    --camera 0 \                # Camera device index
-    --wake-word "bin diesel" \  # Voice wake word
-    --no-video                  # Disable video display
-```
+## File Structure
 
-## Voice Commands
+- `main.py` - Main entry point and state machine
+- `wake_word_detector.py` - Wake word detection (Picovoice)
+- `visual_detector.py` - Arm raising and person tracking
+- `motor_controller.py` - PWM speed control
+- `servo_controller.py` - PWM steering control
+- `tof_sensor.py` - Distance measurement (VL53L0X)
+- `voice_recognizer.py` - Voice commands for manual mode
+- `config.py` - Configuration and GPIO pin assignments
+- `state_machine.py` - System state management
 
-Say the wake word followed by a command:
+## GPIO Pin Configuration
 
-- **"bin diesel, come here"** - Follow the person
-- **"bin diesel, stop"** - Stop the car
-- **"bin diesel, go forward"** - Move forward
-- **"bin diesel, turn left/right"** - Turn direction
-- **General queries** - "what time is it?", "who's the president?"
-
-## Project Structure
-
-```
-.
-├── bindieselsimple.py          # Simple implementation (wake word + flag detection)
-├── camerasimple.py             # Camera test with color flag detection
-├── SETUP.md                    # Setup guide for simple implementation
-├── vision_main.py              # Main entry point (full system)
-├── vision_navigator.py         # Navigation controller
-├── vision_person_tracker.py    # Person detection & tracking
-├── obstacle_detector.py        # Obstacle detection
-├── speech_recognizer.py        # Voice command recognition
-├── psoc_communicator.py       # PSoC serial communication
-├── test_camera_basic.py        # Camera test script
-├── test_respeaker_openai.py    # Voice + OpenAI test
-├── requirements.txt            # Python dependencies
-├── README.md                   # This file
-├── SETUP_WAKE_WORD.md          # Wake word setup guide
-├── VISION_NAVIGATION_README.md # Detailed system guide
-└── OBSTACLE_AVOIDANCE_RESEARCH.md # Obstacle avoidance research
-```
-
-## Documentation
-
-- **[VISION_NAVIGATION_README.md](VISION_NAVIGATION_README.md)** - Complete system documentation
-- **[OBSTACLE_AVOIDANCE_RESEARCH.md](OBSTACLE_AVOIDANCE_RESEARCH.md)** - Obstacle avoidance methods and research
-
-## PSoC Communication Protocol
-
-Commands sent to PSoC:
-```
-NAV:ANGLE:XX.XX:SPEED:XX.XX\n    # Navigation command
-NAV:STOP\n                        # Stop command
-```
+Default pins (configurable in `config.py`):
+- Motor PWM: GPIO 18
+- Servo PWM: GPIO 19
+- TOF Sensor: I2C (SDA/SCL)
 
 ## Troubleshooting
 
-### Camera Issues
-```bash
-# Check camera detection
-ls /dev/video*
-raspistill -o test.jpg
+- Check GPIO permissions: `sudo usermod -a -G gpio $USER`
+- Verify camera: `libcamera-hello --list-cameras`
+- Test TOF sensor: `python3 test_tof.py`
+- Test motors: `python3 test_motors.py`
 
-# Fix permissions
-sudo usermod -a -G video $USER
-```
-
-### Voice Recognition Issues
-```bash
-# Check microphone
-arecord -l
-arecord -d 5 test.wav && aplay test.wav
-
-# Install speech recognition
-pip3 install SpeechRecognition
-```
-
-### OpenCV Import Issues
-The code automatically handles OpenCV import paths. If issues persist:
-```bash
-sudo apt-get install python3-opencv python3-opencv-contrib
-```
-
-## License
-
-Educational/research purposes.

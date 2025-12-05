@@ -1,23 +1,32 @@
+# Bin Diesel System Requirements
+
+# Core dependencies
 numpy>=1.21.0
-pyaudio>=0.2.11
-pyserial>=3.5
-pvporcupine>=3.0.0
-
-# OpenCV - install via system package (recommended):
-# sudo apt-get install python3-opencv python3-opencv-contrib
-
-# Required for loading .env files
 python-dotenv>=1.0.0
 
-# YOLO (Ultralytics) for object detection
-# Much simpler than TensorFlow Lite - works with any Python 3.6+
-# Model will auto-download on first run (~6MB for yolo11n.pt)
+# Wake word detection
+pvporcupine>=3.0.0
+
+# Object detection
 ultralytics>=8.0.0
 
-# Note: Gesture detection now uses simple image analysis (no MediaPipe/OpenPose needed)
-# Works with any Python version and doesn't require additional dependencies
+# Camera
+# Install via: sudo apt install python3-picamera2
 
-# Optional packages:
-# openai>=1.0.0  # For full vision system (not needed for bindieselsimple.py)
-# mediapipe  # For person detection (alternative to OpenCV)
+# GPIO control
+RPi.GPIO>=0.7.0
+# Alternative: gpiozero (if RPi.GPIO doesn't work)
+
+# TOF Sensor (VL53L0X)
+adafruit-circuitpython-vl53l0x>=2.4.0
+
+# Voice recognition (manual mode) - real-time speech recognition + OpenAI GPT
+SpeechRecognition>=3.10.0
+openai>=1.0.0
+
+# Audio input
+pyaudio>=0.2.11
+
+# OpenCV (for image processing)
+# Install via: sudo apt install python3-opencv
 
