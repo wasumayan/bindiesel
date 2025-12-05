@@ -8,17 +8,31 @@ See `ARCHITECTURE.md` for detailed system design.
 
 ## Quick Start
 
-1. Install dependencies:
+1. **Set up environment variables:**
+```bash
+cp .env.example .env
+nano .env  # Add your PICOVOICE_ACCESS_KEY and OPENAI_API_KEY
+```
+
+2. **Install dependencies:**
 ```bash
 pip3 install --break-system-packages -r requirements.txt
 ```
 
-2. Configure GPIO pins in `config.py` (if needed)
+3. **Test individual components:**
+```bash
+python3 test_wake_word.py      # Test wake word
+python3 test_visual_detection.py  # Test camera + person detection
+python3 test_voice_commands.py   # Test voice recognition
+# etc.
+```
 
-3. Run the system:
+4. **Run the full system:**
 ```bash
 python3 main.py
 ```
+
+**See `SETUP_AND_TESTING.md` for detailed setup and testing instructions.**
 
 ## Features
 
