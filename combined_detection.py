@@ -166,6 +166,59 @@ class ColorDetector:
         return angle
 
 
+def get_dominant_color(roi):
+    """
+    Get dominant color name from a region of interest
+    
+    Args:
+        roi: Region of interest (BGR image)
+        
+    Returns:
+        Color name string ('red', 'green', 'blue', 'yellow', 'white', 'black', etc.)
+    """
+    if roi is None or roi.size == 0:
+        return None
+    
+    # Resize for faster processing
+    small_roi = cv2.resize(roi, (50, 50))
+    
+    # Convert BGR to RGB for color analysis
+    rgb_roi = cv2.cvtColor(small_roi, cv2.COLOR_BGR2RGB)
+    
+    # Reshape to list of pixels
+    pixels = rgb_roi.reshape(-1, 3)
+    
+    # Calculate mean RGB values
+    mean_r = np.mean(pixels[:, 0])
+    mean_g = np.mean(pixels[:, 1])
+    mean_b = np.mean(pixels[:, 2])
+    
+    # Convert to HSV for better color classification
+    hsv_pixel = cv2.cvtColor(np.uint8([[[mean_b, mean_g, mean_r]]]), cv2.COLOR_RGB2HSV)[0][0]
+    h, s, v = hsv_pixel
+    
+    # Classify color based on HSV
+    if v < 30:  # Very dark
+        return 'black'
+    elif s < 30:  # Low saturation (grayscale)
+        if v > 200:
+            return 'white'
+        else:
+            return 'gray'
+    elif h < 10 or h > 170:  # Red
+        return 'red'
+    elif 20 <= h <= 30:  # Yellow
+        return 'yellow'
+    elif 40 <= h <= 80:  # Green
+        return 'green'
+    elif 100 <= h <= 130:  # Blue
+        return 'blue'
+    elif 130 <= h <= 170:  # Purple/Magenta
+        return 'purple'
+    else:
+        return 'orange'
+
+
 def detect_arm_raised_simple(person_box, frame):
     """
     Simple gesture detection: detect if person has raised arm using bounding box analysis
@@ -322,7 +375,9 @@ def main():
     parser.add_argument('--no-fps', action='store_true',
                        help='Hide FPS counter')
     parser.add_argument('--no-gesture', action='store_true',
-                       help='Disable gesture detection (if MediaPipe is installed)')
+                       help='Disable gesture detection')
+    parser.add_argument('--skip-frames', type=int, default=2,
+                       help='Process every Nth frame for color/gesture (default: 2, higher=faster)')
     
     args = parser.parse_args()
     
@@ -336,6 +391,7 @@ def main():
     print("=" * 70)
     print("Press 'q' or ESC to quit")
     print("Press 'r', 'g', 'b', 'y' to switch colors")
+    print(f"Frame skipping: Process color/gesture every {args.skip_frames} frames (for FPS)")
     print("=" * 70)
     print()
     
@@ -357,13 +413,17 @@ def main():
     print("[DEBUG] Initializing picamera2 (Camera Module 3 Wide)...")
     try:
         picam2 = Picamera2()
+        # Use lower resolution for better FPS if width > 640
+        actual_width = min(args.width, 640) if args.width > 640 else args.width
+        actual_height = min(args.height, 480) if args.height > 480 else args.height
+        
         preview_config = picam2.create_preview_configuration(
-            main={"size": (args.width, args.height), "format": "RGB888"}
+            main={"size": (actual_width, actual_height), "format": "RGB888"}
         )
         picam2.configure(preview_config)
         picam2.start()
         time.sleep(0.5)
-        print(f"[DEBUG] Camera started: {args.width}x{args.height}")
+        print(f"[DEBUG] Camera started: {actual_width}x{actual_height} (optimized for FPS)")
     except Exception as e:
         print(f"ERROR: Could not initialize camera: {e}")
         return
@@ -390,26 +450,51 @@ def main():
     
     try:
         while True:
-            # Capture frame from picamera2
+            # Capture frame from picamera2 (returns RGB)
             array = picam2.capture_array()
             
-            # Convert RGB to BGR for OpenCV
+            # picamera2 returns RGB, but OpenCV uses BGR
+            # Convert RGB to BGR for OpenCV operations
             frame = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
             frame_width = frame.shape[1]
             
             counter += 1
             
-            # Run YOLO inference
+            # Skip frames for better FPS (process every Nth frame)
+            process_frame = (counter % args.skip_frames == 0)
+            
+            # Run YOLO inference (always run for object detection)
             yolo_results = yolo_model(frame, conf=args.conf, verbose=False)
             
             # Get YOLO annotated frame (with object detections drawn)
             annotated_frame = yolo_results[0].plot()
             
-            # Run simple gesture detection on detected persons
+            # Add color information to YOLO object labels
+            if process_frame:
+                for box in yolo_results[0].boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+                    # Extract object region
+                    obj_roi = frame[y1:y2, x1:x2]
+                    if obj_roi.size > 0:
+                        # Get dominant color
+                        color_name = get_dominant_color(obj_roi)
+                        if color_name:
+                            # Get class name and confidence
+                            class_id = int(box.cls[0])
+                            class_name = yolo_model.names[class_id]
+                            confidence = float(box.conf[0])
+                            
+                            # Find the label text on the annotated frame and update it
+                            # YOLO's plot() method draws labels, we'll add color info below
+                            label_text = f"{class_name} ({color_name}) {confidence:.2f}"
+                            cv2.putText(annotated_frame, label_text, (x1, y2 + 20),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+            
+            # Run simple gesture detection on detected persons (only on some frames)
             person_boxes = []
             gesture_detections = []
             
-            if enable_gesture:
+            if enable_gesture and process_frame:  # Only process gesture every other frame
                 # Find person class ID
                 person_class_id = None
                 for class_id, class_name in yolo_model.names.items():
@@ -453,14 +538,14 @@ def main():
                             cv2.putText(annotated_frame, gesture_text, (x1, y1 - 10),
                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
-            # Detect colored flag/block
-            color_data = color_detector.detect_color(frame)
-            
-            # Calculate angle if color detected
+            # Detect colored flag/block (only on some frames for better FPS)
+            color_data = None
             angle = None
-            if color_data is not None:
-                center_x, center_y, _, _ = color_data
-                angle = color_detector.calculate_angle((center_x, center_y), frame_width)
+            if process_frame or counter % 5 == 0:  # Check color every 5 frames
+                color_data = color_detector.detect_color(frame)
+                if color_data is not None:
+                    center_x, center_y, _, _ = color_data
+                    angle = color_detector.calculate_angle((center_x, center_y), frame_width)
             
             # Draw color detection overlay on top of YOLO results
             draw_color_detection(annotated_frame, color_data, angle, 
