@@ -22,13 +22,9 @@ except ImportError:
     print("Install with: pip3 install --break-system-packages ultralytics")
     sys.exit(1)
 
-# Try to import MediaPipe for pose detection
-try:
-    import mediapipe as mp
-    MEDIAPIPE_AVAILABLE = True
-except ImportError:
-    MEDIAPIPE_AVAILABLE = False
-    # Don't print warning here - will be handled in main() if gesture detection is requested
+# Gesture detection using simple image analysis (no MediaPipe/OpenPose needed)
+# Uses YOLO person detection + geometric analysis of person bounding box
+MEDIAPIPE_AVAILABLE = False  # Not using MediaPipe anymore
 
 
 # Configuration
@@ -170,106 +166,80 @@ class ColorDetector:
         return angle
 
 
-def calculate_angle_between_points(p1, p2, p3):
+def detect_arm_raised_simple(person_box, frame):
     """
-    Calculate angle between three points (p2 is the vertex)
+    Simple gesture detection: detect if person has raised arm using bounding box analysis
+    and edge detection within the person's region.
+    
+    This is a simplified approach that works without MediaPipe/OpenPose.
+    It analyzes the person's bounding box shape and detects extended regions (arms).
     
     Args:
-        p1, p2, p3: (x, y) tuples
+        person_box: (x1, y1, x2, y2) bounding box of person
+        frame: Camera frame (BGR format)
         
     Returns:
-        Angle in degrees
+        (left_raised, right_raised, confidence) tuple
     """
-    import math
+    x1, y1, x2, y2 = person_box
     
-    # Vector from p2 to p1
-    v1 = (p1[0] - p2[0], p1[1] - p2[1])
-    # Vector from p2 to p3
-    v2 = (p3[0] - p2[0], p3[1] - p2[1])
+    # Extract person region
+    person_roi = frame[y1:y2, x1:x2]
+    if person_roi.size == 0:
+        return (False, False, 0.0)
     
-    # Calculate dot product and magnitudes
-    dot_product = v1[0] * v2[0] + v1[1] * v2[1]
-    mag1 = math.sqrt(v1[0]**2 + v1[1]**2)
-    mag2 = math.sqrt(v2[0]**2 + v2[1]**2)
+    h, w = person_roi.shape[:2]
+    if h < 50 or w < 30:  # Too small to analyze
+        return (False, False, 0.0)
     
-    if mag1 == 0 or mag2 == 0:
-        return None
+    # Calculate bounding box aspect ratio and dimensions
+    aspect_ratio = w / h
+    center_x = w // 2
+    center_y = h // 2
     
-    # Calculate angle in radians, then convert to degrees
-    cos_angle = dot_product / (mag1 * mag2)
-    cos_angle = max(-1.0, min(1.0, cos_angle))  # Clamp to valid range
-    angle_rad = math.acos(cos_angle)
-    angle_deg = math.degrees(angle_rad)
+    # Method 1: Analyze bounding box width extension
+    # When arm is raised, the bounding box should be wider
+    # Normal person: aspect ratio ~0.4-0.6, with raised arm: >0.7
     
-    return angle_deg
-
-
-def detect_arm_raised(landmarks, image_width, image_height):
-    """
-    Detect if a person has raised their arm to the side at ~90 degrees
+    # Method 2: Detect extended regions on left/right sides
+    # Look for horizontal extensions in upper body region
+    upper_body_region = person_roi[:int(h * 0.6), :]  # Top 60% of person
     
-    Args:
-        landmarks: MediaPipe pose landmarks
-        image_width: Width of image
-        image_height: Height of image
-        
-    Returns:
-        (left_raised, right_raised, left_angle, right_angle) tuple
-        where raised is True/False, angle is in degrees or None
-    """
-    if not MEDIAPIPE_AVAILABLE or landmarks is None:
-        return (False, False, None, None)
+    # Convert to grayscale for edge detection
+    gray = cv2.cvtColor(upper_body_region, cv2.COLOR_BGR2GRAY)
     
-    # MediaPipe pose landmark indices
-    LEFT_SHOULDER = 11
-    LEFT_ELBOW = 13
-    LEFT_WRIST = 15
-    RIGHT_SHOULDER = 12
-    RIGHT_ELBOW = 14
-    RIGHT_WRIST = 16
+    # Detect edges
+    edges = cv2.Canny(gray, 50, 150)
     
-    def get_landmark_point(idx):
-        if idx < len(landmarks.landmark):
-            lm = landmarks.landmark[idx]
-            return (int(lm.x * image_width), int(lm.y * image_height))
-        return None
+    # Analyze left and right halves
+    left_half = edges[:, :center_x]
+    right_half = edges[:, center_x:]
     
-    left_raised = False
-    right_raised = False
-    left_angle = None
-    right_angle = None
+    # Count edge pixels in outer regions (where arms would extend)
+    left_outer = left_half[:, :center_x//2]  # Leftmost quarter
+    right_outer = right_half[:, center_x//2:]  # Rightmost quarter
     
-    # Check left arm
-    left_shoulder = get_landmark_point(LEFT_SHOULDER)
-    left_elbow = get_landmark_point(LEFT_ELBOW)
-    left_wrist = get_landmark_point(LEFT_WRIST)
+    left_edge_density = np.sum(left_outer > 0) / max(left_outer.size, 1)
+    right_edge_density = np.sum(right_outer > 0) / max(right_outer.size, 1)
     
-    if left_shoulder and left_elbow and left_wrist:
-        left_angle = calculate_angle_between_points(
-            left_shoulder, left_elbow, left_wrist
-        )
-        # Arm is raised if angle is between 70-110 degrees (approximately 90)
-        if left_angle is not None and 70 <= left_angle <= 110:
-            # Also check if wrist is to the side (x coordinate of wrist > elbow)
-            if left_wrist[0] > left_elbow[0]:  # Wrist is to the right of elbow
-                left_raised = True
+    # Threshold for arm detection
+    edge_threshold = 0.15  # 15% of pixels are edges
     
-    # Check right arm
-    right_shoulder = get_landmark_point(RIGHT_SHOULDER)
-    right_elbow = get_landmark_point(RIGHT_ELBOW)
-    right_wrist = get_landmark_point(RIGHT_WRIST)
+    # Method 3: Check if bounding box is wider than normal
+    # Normal person aspect ratio: ~0.4-0.6
+    # With raised arm: >0.7
+    width_extension = aspect_ratio > 0.7
     
-    if right_shoulder and right_elbow and right_wrist:
-        right_angle = calculate_angle_between_points(
-            right_shoulder, right_elbow, right_wrist
-        )
-        # Arm is raised if angle is between 70-110 degrees (approximately 90)
-        if right_angle is not None and 70 <= right_angle <= 110:
-            # Also check if wrist is to the side (x coordinate of wrist < elbow)
-            if right_wrist[0] < right_elbow[0]:  # Wrist is to the left of elbow
-                right_raised = True
+    # Combine methods
+    left_raised = (left_edge_density > edge_threshold) or (width_extension and x1 < frame.shape[1] * 0.3)
+    right_raised = (right_edge_density > edge_threshold) or (width_extension and x2 > frame.shape[1] * 0.7)
     
-    return (left_raised, right_raised, left_angle, right_angle)
+    # Calculate confidence based on edge density and aspect ratio
+    confidence = min(1.0, (left_edge_density + right_edge_density) / 0.3)
+    if width_extension:
+        confidence = max(confidence, 0.7)
+    
+    return (left_raised, right_raised, confidence)
 
 
 
@@ -376,25 +346,10 @@ def main():
         min_area=args.min_area
     )
     
-    # Initialize MediaPipe Pose if available
-    pose_detector = None
-    if not args.no_gesture:
-        if MEDIAPIPE_AVAILABLE:
-            print("[DEBUG] Initializing MediaPipe Pose...")
-            mp_pose = mp.solutions.pose
-            pose_detector = mp_pose.Pose(
-                static_image_mode=False,
-                model_complexity=1,  # 0=light, 1=medium, 2=heavy (use 1 for balance)
-                enable_segmentation=False,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5
-            )
-            print("[DEBUG] MediaPipe Pose initialized")
-        else:
-            print("[WARNING] MediaPipe not installed - gesture detection disabled")
-            print("  Install with: pip3 install --break-system-packages mediapipe")
-            print("  Or run with: --no-gesture to suppress this warning")
-            print("  See GESTURE_DETECTION_SETUP.md for troubleshooting")
+    # Gesture detection enabled by default (uses simple method, no MediaPipe needed)
+    enable_gesture = not args.no_gesture
+    if enable_gesture:
+        print("[DEBUG] Gesture detection enabled (simple method - no MediaPipe/OpenPose needed)")
     else:
         print("[DEBUG] Gesture detection disabled (--no-gesture flag)")
     
@@ -450,11 +405,11 @@ def main():
             # Get YOLO annotated frame (with object detections drawn)
             annotated_frame = yolo_results[0].plot()
             
-            # Run gesture detection on detected persons
+            # Run simple gesture detection on detected persons
             person_boxes = []
             gesture_detections = []
             
-            if MEDIAPIPE_AVAILABLE and pose_detector:
+            if enable_gesture:
                 # Find person class ID
                 person_class_id = None
                 for class_id, class_name in yolo_model.names.items():
@@ -463,10 +418,6 @@ def main():
                         break
                 
                 if person_class_id is not None:
-                    # Run MediaPipe pose on entire frame (more efficient)
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    full_pose_result = pose_detector.process(frame_rgb)
-                    
                     # Find all person detections from YOLO
                     for box in yolo_results[0].boxes:
                         if int(box.cls[0]) == person_class_id:
@@ -474,33 +425,17 @@ def main():
                             x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
                             person_boxes.append((x1, y1, x2, y2))
                             
-                            # Check if pose landmarks are within this person's bounding box
-                            if full_pose_result.pose_landmarks:
-                                # Check if any key landmarks (shoulders) are in this person's box
-                                left_shoulder = full_pose_result.pose_landmarks.landmark[11]
-                                right_shoulder = full_pose_result.pose_landmarks.landmark[12]
-                                
-                                ls_x, ls_y = int(left_shoulder.x * frame_width), int(left_shoulder.y * frame.shape[0])
-                                rs_x, rs_y = int(right_shoulder.x * frame_width), int(right_shoulder.y * frame.shape[0])
-                                
-                                # If either shoulder is in the person's bounding box, use this pose
-                                if ((x1 <= ls_x <= x2 and y1 <= ls_y <= y2) or 
-                                    (x1 <= rs_x <= x2 and y1 <= rs_y <= y2)):
-                                    # Detect arm raised for this person
-                                    left_raised, right_raised, left_angle, right_angle = detect_arm_raised(
-                                        full_pose_result.pose_landmarks, frame_width, frame.shape[0]
-                                    )
-                                    gesture_detections.append((left_raised, right_raised, left_angle, right_angle))
-                                else:
-                                    gesture_detections.append((False, False, None, None))
-                            else:
-                                gesture_detections.append((False, False, None, None))
+                            # Use simple gesture detection (no MediaPipe/OpenPose needed)
+                            left_raised, right_raised, confidence = detect_arm_raised_simple(
+                                (x1, y1, x2, y2), frame
+                            )
+                            gesture_detections.append((left_raised, right_raised, confidence))
             
             # Draw gesture detection
-            if MEDIAPIPE_AVAILABLE and person_boxes:
+            if enable_gesture and person_boxes:
                 for i, person_box in enumerate(person_boxes):
                     if i < len(gesture_detections):
-                        left_raised, right_raised, left_angle, right_angle = gesture_detections[i]
+                        left_raised, right_raised, confidence = gesture_detections[i]
                         x1, y1, x2, y2 = person_box
                         
                         if left_raised or right_raised:
@@ -509,11 +444,11 @@ def main():
                             
                             gesture_text = "ARM RAISED!"
                             if left_raised and right_raised:
-                                gesture_text = "BOTH ARMS RAISED!"
+                                gesture_text = f"BOTH ARMS RAISED! ({confidence:.0%})"
                             elif left_raised:
-                                gesture_text = f"LEFT ARM RAISED! ({left_angle:.0f}°)"
+                                gesture_text = f"LEFT ARM RAISED! ({confidence:.0%})"
                             elif right_raised:
-                                gesture_text = f"RIGHT ARM RAISED! ({right_angle:.0f}°)"
+                                gesture_text = f"RIGHT ARM RAISED! ({confidence:.0%})"
                             
                             cv2.putText(annotated_frame, gesture_text, (x1, y1 - 10),
                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -543,8 +478,8 @@ def main():
                 
                 # Count gesture detections
                 gesture_count = 0
-                if MEDIAPIPE_AVAILABLE and gesture_detections:
-                    for left_raised, right_raised, _, _ in gesture_detections:
+                if enable_gesture and gesture_detections:
+                    for left_raised, right_raised, _ in gesture_detections:
                         if left_raised or right_raised:
                             gesture_count += 1
                 

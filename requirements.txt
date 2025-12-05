@@ -14,10 +14,8 @@ python-dotenv>=1.0.0
 # Model will auto-download on first run (~6MB for yolo11n.pt)
 ultralytics>=8.0.0
 
-# MediaPipe for gesture/pose detection (optional)
-# Install with: pip3 install --break-system-packages mediapipe
-# Note: Works on Raspberry Pi but may be slow on older models
-mediapipe>=0.10.0
+# Note: Gesture detection now uses simple image analysis (no MediaPipe/OpenPose needed)
+# Works with any Python version and doesn't require additional dependencies
 
 # Optional packages:
 # openai>=1.0.0  # For full vision system (not needed for bindieselsimple.py)
