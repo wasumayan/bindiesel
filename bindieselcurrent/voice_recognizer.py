@@ -1,18 +1,24 @@
 """
 Voice Recognition Module for Manual Mode
-Uses OpenAI GPT API to recognize voice commands
-Commands: FORWARD, LEFT, RIGHT, STOP, TURN AROUND
+Uses real-time speech recognition + OpenAI GPT for command interpretation
+Commands: FORWARD, LEFT, RIGHT, STOP, TURN AROUND, AUTOMATIC MODE
 """
 
 import os
 import time
-import pyaudio
-import wave
-import tempfile
+import json
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+try:
+    import speech_recognition as sr
+    SPEECH_RECOGNITION_AVAILABLE = True
+except ImportError:
+    print("WARNING: speech_recognition library not available")
+    print("Install with: pip3 install --break-system-packages SpeechRecognition")
+    SPEECH_RECOGNITION_AVAILABLE = False
 
 try:
     from openai import OpenAI
@@ -24,9 +30,9 @@ except ImportError:
 
 
 class VoiceRecognizer:
-    """Recognizes voice commands using OpenAI Whisper API"""
+    """Recognizes voice commands using real-time speech recognition + OpenAI GPT"""
     
-    # Valid commands
+    # Valid commands (for reference and fallback)
     COMMANDS = {
         'forward': 'FORWARD',
         'left': 'LEFT',
@@ -34,157 +40,181 @@ class VoiceRecognizer:
         'stop': 'STOP',
         'turn around': 'TURN_AROUND',
         'turnaround': 'TURN_AROUND',
-        'go back': 'TURN_AROUND',
-        'back': 'TURN_AROUND'
+        'automatic mode': 'AUTOMATIC_MODE',
+        'automatic': 'AUTOMATIC_MODE',
+        'auto mode': 'AUTOMATIC_MODE',
+        'auto': 'AUTOMATIC_MODE',
+        'bin diesel': 'AUTOMATIC_MODE',  # Also accept wake word to return to auto
+        'manual mode': 'MANUAL_MODE'  # Enter manual mode
     }
     
-    def __init__(self, api_key=None, sample_rate=16000, chunk_size=1024, 
-                 record_seconds=2):
+    # System prompt for OpenAI GPT
+    SYSTEM_PROMPT = """You are a voice command interpreter for a robot car. 
+Your job is to interpret spoken commands and return ONLY one of these exact commands:
+- FORWARD
+- LEFT
+- RIGHT
+- STOP
+- TURN_AROUND
+- AUTOMATIC_MODE
+- MANUAL_MODE
+
+Return ONLY the command name, nothing else. If the command doesn't match any of these, return "UNKNOWN".
+Be flexible with variations (e.g., "go forward", "move left", "turn right", "stop", "turn around", "automatic mode", "manual mode")."""
+    
+    def __init__(self, api_key=None, model="gpt-4o-mini", energy_threshold=4000, 
+                 pause_threshold=0.8, phrase_time_limit=3.0):
         """
         Initialize voice recognizer
         
         Args:
             api_key: OpenAI API key (or None to use OPENAI_API_KEY env var)
-            sample_rate: Audio sample rate (default 16000 Hz)
-            chunk_size: Audio chunk size
-            record_seconds: How long to record for each command
+            model: OpenAI model to use (default: gpt-4o-mini for speed/cost)
+            energy_threshold: Minimum energy level for speech detection
+            pause_threshold: Seconds of non-speaking audio before phrase ends
+            phrase_time_limit: Maximum seconds for a phrase
         """
+        if not SPEECH_RECOGNITION_AVAILABLE:
+            raise ImportError("speech_recognition library not available!")
+        
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
-        self.sample_rate = sample_rate
-        self.chunk_size = chunk_size
-        self.record_seconds = record_seconds
+        self.model = model
         
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables!")
         
         if OPENAI_AVAILABLE:
             self.client = OpenAI(api_key=self.api_key)
-            print("[VoiceRecognizer] Initialized with OpenAI API")
+            print(f"[VoiceRecognizer] Initialized with OpenAI API (model: {model})")
         else:
             self.client = None
-            print("[VoiceRecognizer] WARNING: OpenAI not available, using mock mode")
+            print("[VoiceRecognizer] WARNING: OpenAI not available, using fallback mode")
         
-        # Initialize audio
-        self.audio = pyaudio.PyAudio()
+        self.recognizer = sr.Recognizer()
+        self.microphone = sr.Microphone()
+        
+        # Adjust for ambient noise
+        print("[VoiceRecognizer] Adjusting for ambient noise...")
+        with self.microphone as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        
+        # Set recognition parameters
+        self.recognizer.energy_threshold = energy_threshold
+        self.recognizer.pause_threshold = pause_threshold
+        self.recognizer.phrase_time_limit = phrase_time_limit
+        
+        print("[VoiceRecognizer] Initialized with real-time speech recognition")
+        print(f"[VoiceRecognizer] Energy threshold: {energy_threshold}")
+        print(f"[VoiceRecognizer] Pause threshold: {pause_threshold}s")
     
-    def record_audio(self):
+    def interpret_command_with_gpt(self, transcribed_text):
         """
-        Record audio from microphone
-        
-        Returns:
-            Path to temporary WAV file, or None if error
-        """
-        try:
-            # Open audio stream
-            stream = self.audio.open(
-                format=pyaudio.paInt16,
-                channels=1,
-                rate=self.sample_rate,
-                input=True,
-                frames_per_buffer=self.chunk_size
-            )
-            
-            print("[VoiceRecognizer] Recording... (speak now)")
-            frames = []
-            
-            # Record for specified duration
-            for _ in range(0, int(self.sample_rate / self.chunk_size * self.record_seconds)):
-                data = stream.read(self.chunk_size)
-                frames.append(data)
-            
-            print("[VoiceRecognizer] Recording complete")
-            
-            # Stop and close stream
-            stream.stop_stream()
-            stream.close()
-            
-            # Save to temporary file
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
-            temp_path = temp_file.name
-            temp_file.close()
-            
-            # Write WAV file
-            wf = wave.open(temp_path, 'wb')
-            wf.setnchannels(1)
-            wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
-            wf.setframerate(self.sample_rate)
-            wf.writeframes(b''.join(frames))
-            wf.close()
-            
-            return temp_path
-        
-        except Exception as e:
-            print(f"[VoiceRecognizer] Error recording audio: {e}")
-            return None
-    
-    def transcribe(self, audio_file_path):
-        """
-        Transcribe audio using OpenAI Whisper API
+        Use OpenAI GPT to interpret the transcribed text and return a command
         
         Args:
-            audio_file_path: Path to audio file
+            transcribed_text: Text from speech recognition
             
         Returns:
-            Transcribed text, or None if error
+            Command string or None
         """
         if not self.client:
-            # Mock mode - return a test command
-            print("[VoiceRecognizer] Mock mode: returning 'FORWARD'")
-            return "forward"
+            # Fallback to keyword matching
+            text_lower = transcribed_text.lower()
+            for keyword, command in self.COMMANDS.items():
+                if keyword in text_lower:
+                    return command
+            return None
         
         try:
-            with open(audio_file_path, 'rb') as audio_file:
-                transcript = self.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language="en"
-                )
+            # Use OpenAI chat completions API
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self.SYSTEM_PROMPT},
+                    {"role": "user", "content": f"Interpret this command: '{transcribed_text}'"}
+                ],
+                temperature=0.1,  # Low temperature for consistent output
+                max_tokens=10,  # Only need short response
+            )
             
-            text = transcript.text.strip().lower()
-            print(f"[VoiceRecognizer] Transcribed: '{text}'")
-            return text
+            command = response.choices[0].message.content.strip().upper()
+            
+            # Validate command
+            valid_commands = ['FORWARD', 'LEFT', 'RIGHT', 'STOP', 'TURN_AROUND', 
+                            'AUTOMATIC_MODE', 'MANUAL_MODE']
+            
+            if command in valid_commands:
+                return command
+            elif command == "UNKNOWN":
+                return None
+            else:
+                # Try to match partial or similar
+                for valid_cmd in valid_commands:
+                    if valid_cmd in command or command in valid_cmd:
+                        return valid_cmd
+                return None
         
         except Exception as e:
-            print(f"[VoiceRecognizer] Error transcribing: {e}")
+            print(f"[VoiceRecognizer] Error with OpenAI API: {e}")
+            # Fallback to keyword matching
+            text_lower = transcribed_text.lower()
+            for keyword, command in self.COMMANDS.items():
+                if keyword in text_lower:
+                    return command
             return None
     
-    def recognize_command(self):
+    def recognize_command(self, timeout=None):
         """
-        Record audio and recognize command
+        Recognize voice command in real-time
         
+        Args:
+            timeout: Maximum seconds to wait for speech (None = wait indefinitely)
+            
         Returns:
-            Command string (FORWARD, LEFT, RIGHT, STOP, TURN_AROUND) or None
+            Command string (FORWARD, LEFT, RIGHT, STOP, TURN_AROUND, AUTOMATIC_MODE, MANUAL_MODE) or None
         """
-        # Record audio
-        audio_file = self.record_audio()
-        if not audio_file:
-            return None
-        
         try:
-            # Transcribe
-            text = self.transcribe(audio_file)
-            if not text:
+            # Listen for speech
+            with self.microphone as source:
+                if timeout:
+                    print(f"[VoiceRecognizer] Listening (timeout: {timeout}s)...")
+                    audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=3.0)
+                else:
+                    print("[VoiceRecognizer] Listening... (speak now)")
+                    audio = self.recognizer.listen(source, phrase_time_limit=3.0)
+            
+            # Recognize speech using Google Speech Recognition (free, no API key needed)
+            try:
+                text = self.recognizer.recognize_google(audio)
+                print(f"[VoiceRecognizer] Transcribed: '{text}'")
+            except sr.UnknownValueError:
+                print("[VoiceRecognizer] Could not understand audio")
+                return None
+            except sr.RequestError as e:
+                print(f"[VoiceRecognizer] Error with speech recognition service: {e}")
                 return None
             
-            # Match to command
-            for keyword, command in self.COMMANDS.items():
-                if keyword in text:
-                    print(f"[VoiceRecognizer] Command recognized: {command}")
-                    return command
+            # Use OpenAI GPT to interpret the command
+            command = self.interpret_command_with_gpt(text)
             
-            print(f"[VoiceRecognizer] No valid command found in: '{text}'")
-            print(f"[VoiceRecognizer] Valid commands: {', '.join(self.COMMANDS.keys())}")
-            return None
+            if command:
+                print(f"[VoiceRecognizer] Command recognized: {command}")
+                return command
+            else:
+                print(f"[VoiceRecognizer] No valid command found in: '{text}'")
+                print(f"[VoiceRecognizer] Valid commands: FORWARD, LEFT, RIGHT, STOP, TURN_AROUND, AUTOMATIC_MODE, MANUAL_MODE")
+                return None
         
-        finally:
-            # Clean up temporary file
-            if audio_file and os.path.exists(audio_file):
-                os.remove(audio_file)
+        except sr.WaitTimeoutError:
+            print("[VoiceRecognizer] Listening timeout - no speech detected")
+            return None
+        except Exception as e:
+            print(f"[VoiceRecognizer] Error during recognition: {e}")
+            return None
     
     def cleanup(self):
         """Cleanup audio resources"""
-        if self.audio:
-            self.audio.terminate()
+        # Microphone is automatically cleaned up when context exits
         print("[VoiceRecognizer] Cleaned up")
 
 
@@ -193,22 +223,23 @@ if __name__ == '__main__':
     import config
     
     print("Testing voice recognition...")
-    print("Say one of: FORWARD, LEFT, RIGHT, STOP, TURN AROUND")
+    print("Say one of: FORWARD, LEFT, RIGHT, STOP, TURN AROUND, AUTOMATIC MODE, MANUAL MODE")
     print("Press Ctrl+C to exit")
     
     try:
         recognizer = VoiceRecognizer(
-            api_key=config.OPENAI_API_KEY
+            api_key=config.OPENAI_API_KEY,
+            model="gpt-4o-mini"  # Fast and cost-effective
         )
         
         while True:
-            command = recognizer.recognize_command()
+            command = recognizer.recognize_command(timeout=5.0)
             if command:
                 print(f"✓ Command: {command}")
             else:
                 print("✗ No command recognized, try again")
             
-            time.sleep(1)
+            time.sleep(0.5)
     
     except KeyboardInterrupt:
         print("\nStopping...")

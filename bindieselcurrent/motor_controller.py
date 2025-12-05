@@ -101,20 +101,6 @@ class MotorController:
         """
         self.set_speed(speed_percent)
     
-    def backward(self, speed_percent):
-        """
-        Move backward at specified speed
-        
-        Args:
-            speed_percent: Speed as percentage (0.0 to 1.0)
-        
-        Note: This assumes your motor controller supports reverse.
-        If not, you may need to use a different GPIO pin or H-bridge.
-        """
-        # For now, we'll use negative speed to indicate reverse
-        # You may need to modify this based on your motor controller
-        self.set_speed(-speed_percent)
-    
     def cleanup(self):
         """Cleanup GPIO resources"""
         if self.pwm:

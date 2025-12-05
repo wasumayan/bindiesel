@@ -22,6 +22,7 @@ from motor_controller import MotorController
 from servo_controller import ServoController
 from tof_sensor import TOFSensor
 from voice_recognizer import VoiceRecognizer
+from path_tracker import PathTracker
 
 
 class BinDieselSystem:
@@ -37,6 +38,9 @@ class BinDieselSystem:
         self.state_machine = StateMachine(
             tracking_timeout=config.TRACKING_TIMEOUT
         )
+        
+        # Initialize path tracker
+        self.path_tracker = PathTracker()
         
         # Initialize wake word detector
         print("\n[Main] Initializing wake word detector...")
@@ -112,7 +116,8 @@ class BinDieselSystem:
         print("\n[Main] Initializing voice recognizer...")
         try:
             self.voice = VoiceRecognizer(
-                api_key=config.OPENAI_API_KEY
+                api_key=config.OPENAI_API_KEY,
+                model=config.OPENAI_MODEL
             )
         except Exception as e:
             print(f"[Main] WARNING: Failed to initialize voice recognizer: {e}")
@@ -123,6 +128,10 @@ class BinDieselSystem:
         self.running = True
         self.last_visual_update = 0
         self.visual_update_interval = 0.1  # Update visual detection every 100ms
+        
+        # Manual mode state
+        self.current_manual_command = None  # Current active manual command
+        self.last_command_time = 0  # Time of last command execution
         
         # Debug mode
         self.debug_mode = config.DEBUG_MODE
@@ -169,6 +178,7 @@ class BinDieselSystem:
                 # User raised arm - enter autonomous mode
                 self.state_machine.transition_to(State.TRACKING_USER)
                 self.state_machine.set_start_position("origin")  # Store starting position
+                self.path_tracker.start_tracking()  # Start tracking path
                 print("[Main] Autonomous mode: User detected with raised arm")
         
         # TODO: Check for "manual mode" voice command
@@ -232,40 +242,45 @@ class BinDieselSystem:
             self.state_machine.transition_to(State.STOPPED)
             return
         
-        # Calculate steering based on angle
-        if result['angle'] is not None:
-            angle = result['angle']
-            
-            if self.debug_mode and config.DEBUG_VISUAL:
-                print(f"[Main] DEBUG: Person angle: {angle:.1f}°, centered: {result['is_centered']}")
-            
-            # Convert angle to steering position
-            # Use configurable gain to adjust sensitivity
-            steering_position = (angle / 45.0) * config.ANGLE_TO_STEERING_GAIN
-            steering_position = max(-1.0, min(1.0, steering_position))
-            
-            if self.debug_mode and config.DEBUG_SERVO:
-                print(f"[Main] DEBUG: Setting servo angle: {angle:.1f}° (position: {steering_position:.2f})")
-            
-            self.servo.set_angle(angle)
-            
-            # Adjust speed based on how centered user is
-            if result['is_centered']:
-                # User is centered - move forward
-                speed = config.FOLLOW_SPEED
-                if self.debug_mode and config.DEBUG_MOTOR:
-                    print(f"[Main] DEBUG: User centered, moving forward at {speed*100:.0f}%")
-                self.motor.forward(speed)
+            # Calculate steering based on angle
+            if result['angle'] is not None:
+                angle = result['angle']
+                
+                if self.debug_mode and config.DEBUG_VISUAL:
+                    print(f"[Main] DEBUG: Person angle: {angle:.1f}°, centered: {result['is_centered']}")
+                
+                # Convert angle to steering position
+                # Use configurable gain to adjust sensitivity
+                steering_position = (angle / 45.0) * config.ANGLE_TO_STEERING_GAIN
+                steering_position = max(-1.0, min(1.0, steering_position))
+                
+                if self.debug_mode and config.DEBUG_SERVO:
+                    print(f"[Main] DEBUG: Setting servo angle: {angle:.1f}° (position: {steering_position:.2f})")
+                
+                self.servo.set_angle(angle)
+                
+                # Adjust speed based on how centered user is
+                if result['is_centered']:
+                    # User is centered - move forward
+                    speed = config.FOLLOW_SPEED
+                    if self.debug_mode and config.DEBUG_MOTOR:
+                        print(f"[Main] DEBUG: User centered, moving forward at {speed*100:.0f}%")
+                    self.motor.forward(speed)
+                else:
+                    # User not centered - slow down while turning
+                    speed = config.FOLLOW_SPEED * 0.7
+                    if self.debug_mode and config.DEBUG_MOTOR:
+                        print(f"[Main] DEBUG: User not centered, moving forward at {speed*100:.0f}% while turning")
+                    self.motor.forward(speed)
+                
+                # Track path segment
+                segment_duration = time.time() - self.last_command_time if self.last_command_time > 0 else 0.1
+                self.path_tracker.add_segment(speed, steering_position, segment_duration)
+                self.last_command_time = time.time()
             else:
-                # User not centered - slow down while turning
-                speed = config.FOLLOW_SPEED * 0.7
-                if self.debug_mode and config.DEBUG_MOTOR:
-                    print(f"[Main] DEBUG: User not centered, moving forward at {speed*100:.0f}% while turning")
-                self.motor.forward(speed)
-        else:
-            # No angle data - stop
-            self.motor.stop()
-            self.servo.center()
+                # No angle data - stop
+                self.motor.stop()
+                self.servo.center()
     
     def handle_stopped_state(self):
         """Handle STOPPED state - at target distance, waiting"""
@@ -279,20 +294,50 @@ class BinDieselSystem:
             self.state_machine.transition_to(State.RETURNING_TO_START)
     
     def handle_returning_to_start_state(self):
-        """Handle RETURNING_TO_START state - navigating back"""
-        # Simple return: move backward for a fixed time/distance
-        # In a real system, you'd use odometry or visual navigation
+        """Handle RETURNING_TO_START state - navigating back using reverse path"""
+        # Get reverse path
+        reverse_path = self.path_tracker.get_reverse_path()
         
-        return_time = 5.0  # Return for 5 seconds (adjust based on distance)
-        if self.state_machine.get_time_in_state() > return_time:
+        if len(reverse_path) == 0:
+            print("[Main] No path recorded, cannot return to start")
+            self.motor.stop()
+            self.servo.center()
+            self.path_tracker.stop_tracking()
+            self.state_machine.transition_to(State.IDLE)
+            return
+        
+        # Execute reverse path segments
+        # For simplicity, we'll execute them sequentially
+        # In a more sophisticated system, you'd track which segment you're on
+        
+        # Get the first segment (last movement in original path)
+        if not hasattr(self, 'return_path_index'):
+            self.return_path_index = 0
+            self.return_segment_start_time = time.time()
+        
+        if self.return_path_index < len(reverse_path):
+            segment = reverse_path[self.return_path_index]
+            
+            # Execute current segment
+            self.motor.forward(segment['motor_speed'])
+            self.servo.set_position(segment['servo_position'])
+            
+            # Check if segment duration elapsed
+            if time.time() - self.return_segment_start_time >= segment['duration']:
+                self.return_path_index += 1
+                self.return_segment_start_time = time.time()
+                
+                if self.debug_mode:
+                    print(f"[Main] DEBUG: Completed return segment {self.return_path_index}/{len(reverse_path)}")
+        else:
+            # All segments completed
             print("[Main] Returned to start position")
             self.motor.stop()
             self.servo.center()
+            self.path_tracker.stop_tracking()
+            self.path_tracker.clear()
+            delattr(self, 'return_path_index')
             self.state_machine.transition_to(State.IDLE)
-        else:
-            # Move backward
-            self.motor.backward(config.RETURN_SPEED)
-            self.servo.center()  # Keep straight
     
     def handle_manual_mode_state(self):
         """Handle MANUAL_MODE state - waiting for voice commands"""
@@ -301,49 +346,62 @@ class BinDieselSystem:
             self.state_machine.transition_to(State.IDLE)
             return
         
-        # Get voice command
-        command = self.voice.recognize_command()
+        # Check for new voice command (non-blocking with timeout)
+        command = self.voice.recognize_command(timeout=0.5)  # Short timeout for responsiveness
         
         if command:
-            self.state_machine.transition_to(State.EXECUTING_COMMAND)
-            self.execute_manual_command(command)
-    
-    def execute_manual_command(self, command):
-        """Execute manual voice command"""
-        print(f"[Main] Executing command: {command}")
+            if command == 'AUTOMATIC_MODE':
+                # Return to automatic mode
+                print("[Main] Returning to automatic mode")
+                self.current_manual_command = None
+                self.motor.stop()
+                self.servo.center()
+                self.state_machine.transition_to(State.ACTIVE)
+            elif command == 'STOP':
+                # Stop current command
+                print("[Main] Stopping current command")
+                self.current_manual_command = None
+                self.motor.stop()
+                self.servo.center()
+            else:
+                # New command received
+                print(f"[Main] New command received: {command}")
+                self.current_manual_command = command
+                self.last_command_time = time.time()
         
+        # Execute current command continuously until new command/stop
+        if self.current_manual_command:
+            self.execute_manual_command_continuous(self.current_manual_command)
+    
+    def execute_manual_command_continuous(self, command):
+        """Execute manual command continuously until stopped"""
         if command == 'FORWARD':
             self.motor.forward(config.MOTOR_MEDIUM)
             self.servo.center()
-            time.sleep(2)  # Move for 2 seconds
-            self.motor.stop()
         
         elif command == 'LEFT':
             self.motor.forward(config.MOTOR_SLOW)
             self.servo.turn_left(0.5)
-            time.sleep(1)  # Turn for 1 second
-            self.motor.stop()
-            self.servo.center()
         
         elif command == 'RIGHT':
             self.motor.forward(config.MOTOR_SLOW)
             self.servo.turn_right(0.5)
-            time.sleep(1)  # Turn for 1 second
-            self.motor.stop()
-            self.servo.center()
-        
-        elif command == 'STOP':
-            self.motor.stop()
-            self.servo.center()
         
         elif command == 'TURN_AROUND':
-            self.motor.stop()
-            self.servo.turn_left(1.0)
-            time.sleep(2)  # Turn around
-            self.servo.center()
+            # Turn around is a one-time action
+            if not hasattr(self, 'turn_around_complete'):
+                self.motor.stop()
+                self.servo.turn_left(1.0)
+                time.sleep(2)  # Turn around
+                self.servo.center()
+                self.turn_around_complete = True
+                # After turn around, continue forward
+                self.current_manual_command = 'FORWARD'
+                self.motor.forward(config.MOTOR_MEDIUM)
         
-        # Return to manual mode
-        self.state_machine.transition_to(State.MANUAL_MODE)
+        # Reset turn around flag if command changed
+        if command != 'TURN_AROUND' and hasattr(self, 'turn_around_complete'):
+            delattr(self, 'turn_around_complete')
     
     def run(self):
         """Main control loop"""
@@ -356,6 +414,15 @@ class BinDieselSystem:
                     self.handle_idle_state()
                 
                 elif state == State.ACTIVE:
+                    # Check for "manual mode" voice command
+                    if self.voice:
+                        command = self.voice.recognize_command(timeout=0.1)  # Quick check
+                        if command and command == 'MANUAL_MODE':
+                            print("[Main] Manual mode activated")
+                            self.state_machine.transition_to(State.MANUAL_MODE)
+                            self.current_manual_command = None
+                            continue
+                    
                     self.handle_active_state()
                 
                 elif state == State.TRACKING_USER:
@@ -373,9 +440,8 @@ class BinDieselSystem:
                 elif state == State.MANUAL_MODE:
                     self.handle_manual_mode_state()
                 
-                elif state == State.EXECUTING_COMMAND:
-                    # Commands execute synchronously, so we don't loop here
-                    pass
+                elif state == State.MANUAL_MODE:
+                    self.handle_manual_mode_state()
                 
                 # Small delay to prevent CPU spinning
                 time.sleep(0.01)

@@ -20,7 +20,8 @@ RPi.GPIO>=0.7.0
 # TOF Sensor (VL53L0X)
 adafruit-circuitpython-vl53l0x>=2.4.0
 
-# Voice recognition (manual mode)
+# Voice recognition (manual mode) - real-time speech recognition + OpenAI GPT
+SpeechRecognition>=3.10.0
 openai>=1.0.0
 
 # Audio input

@@ -50,6 +50,7 @@ WAKE_WORD_ACCESS_KEY = None  # Set in .env file or environment variable
 
 # Voice Recognition (Manual Mode)
 OPENAI_API_KEY = None  # Set in .env file or environment variable
+OPENAI_MODEL = "gpt-4o-mini"  # OpenAI model for command interpretation (gpt-4o-mini is fast/cheap)
 VOICE_COMMAND_TIMEOUT = 5.0  # Seconds to wait for voice command
 
 # State Machine Configuration
@@ -62,11 +63,11 @@ EMERGENCY_STOP_ENABLED = True  # Enable TOF emergency stop
 MAX_SPEED_LIMIT = MOTOR_MEDIUM  # Maximum allowed speed (safety limit)
 
 # Debug Configuration
-DEBUG_MODE = False  # Enable debug logging throughout system
-DEBUG_VISUAL = False  # Debug visual detection specifically
-DEBUG_MOTOR = False  # Debug motor commands
-DEBUG_SERVO = False  # Debug servo commands
-DEBUG_TOF = False  # Debug TOF sensor readings
-DEBUG_VOICE = False  # Debug voice recognition
-DEBUG_STATE = False  # Debug state machine transitions
+DEBUG_MODE = True  # Enable debug logging throughout system
+DEBUG_VISUAL = True  # Debug visual detection specifically
+DEBUG_MOTOR = True  # Debug motor commands
+DEBUG_SERVO = True  # Debug servo commands
+DEBUG_TOF = True  # Debug TOF sensor readings
+DEBUG_VOICE = True  # Debug voice recognition
+DEBUG_STATE = True  # Debug state machine transitions
 
