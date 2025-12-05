@@ -171,7 +171,7 @@ def get_dominant_color(roi):
     Get dominant color name from a region of interest
     
     Args:
-        roi: Region of interest (BGR image)
+        roi: Region of interest (BGR image from OpenCV)
         
     Returns:
         Color name string ('red', 'green', 'blue', 'yellow', 'white', 'black', etc.)
@@ -182,20 +182,19 @@ def get_dominant_color(roi):
     # Resize for faster processing
     small_roi = cv2.resize(roi, (50, 50))
     
-    # Convert BGR to RGB for color analysis
-    rgb_roi = cv2.cvtColor(small_roi, cv2.COLOR_BGR2RGB)
+    # roi is already in BGR format (from OpenCV)
+    # Convert BGR to HSV for better color classification
+    hsv_roi = cv2.cvtColor(small_roi, cv2.COLOR_BGR2HSV)
     
     # Reshape to list of pixels
-    pixels = rgb_roi.reshape(-1, 3)
+    pixels = hsv_roi.reshape(-1, 3)
     
-    # Calculate mean RGB values
-    mean_r = np.mean(pixels[:, 0])
-    mean_g = np.mean(pixels[:, 1])
-    mean_b = np.mean(pixels[:, 2])
+    # Calculate mean HSV values
+    mean_h = np.mean(pixels[:, 0])
+    mean_s = np.mean(pixels[:, 1])
+    mean_v = np.mean(pixels[:, 2])
     
-    # Convert to HSV for better color classification
-    hsv_pixel = cv2.cvtColor(np.uint8([[[mean_b, mean_g, mean_r]]]), cv2.COLOR_RGB2HSV)[0][0]
-    h, s, v = hsv_pixel
+    h, s, v = int(mean_h), int(mean_s), int(mean_v)
     
     # Classify color based on HSV
     if v < 30:  # Very dark
@@ -470,25 +469,20 @@ def main():
             annotated_frame = yolo_results[0].plot()
             
             # Add color information to YOLO object labels
+            # Note: YOLO's plot() already draws labels, so we add color info below the box
             if process_frame:
                 for box in yolo_results[0].boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
-                    # Extract object region
+                    # Extract object region (frame is BGR, which is correct)
                     obj_roi = frame[y1:y2, x1:x2]
                     if obj_roi.size > 0:
-                        # Get dominant color
+                        # Get dominant color (function handles BGR->RGB conversion internally)
                         color_name = get_dominant_color(obj_roi)
                         if color_name:
-                            # Get class name and confidence
-                            class_id = int(box.cls[0])
-                            class_name = yolo_model.names[class_id]
-                            confidence = float(box.conf[0])
-                            
-                            # Find the label text on the annotated frame and update it
-                            # YOLO's plot() method draws labels, we'll add color info below
-                            label_text = f"{class_name} ({color_name}) {confidence:.2f}"
-                            cv2.putText(annotated_frame, label_text, (x1, y2 + 20),
-                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                            # Draw color info below the bounding box (YOLO label is above)
+                            color_text = f"({color_name})"
+                            cv2.putText(annotated_frame, color_text, (x1, y2 + 15),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
             
             # Run simple gesture detection on detected persons (only on some frames)
             person_boxes = []
