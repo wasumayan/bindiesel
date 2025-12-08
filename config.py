@@ -54,7 +54,6 @@ VOICE_COMMAND_TIMEOUT = 5.0  # Seconds to wait for voice command
 
 # Safety Configuration
 EMERGENCY_STOP_ENABLED = True  # Enable TOF emergency stop
-MAX_SPEED_LIMIT = MOTOR_MEDIUM  # Maximum allowed speed (safety limit)
 
 # Debug Configuration
 DEBUG_MODE = True  # Enable debug logging throughout system
