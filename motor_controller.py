@@ -46,7 +46,7 @@ class MotorController:
 
     def cleanup(self):                  # what is cleanup? 
         if config.USE_GPIO:
-            if self.pwn:
+            if self.pwm:
                 self.pwm.stop()
             GPIO.cleanup(self.pwm_pin)
 
