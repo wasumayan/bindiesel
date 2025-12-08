@@ -9,7 +9,7 @@ import time
 import config
 
 def main():
-    print("\n=== Testing Servo Controller ===")
+    print("\n=== Testing Motor Controller ===")
     print(f"USE_GPIO = {config.USE_GPIO}")
 
     motor = MotorController(
@@ -19,13 +19,13 @@ def main():
 
     # Test center position
     print("\nDrive forward")
-    motor.forward(0.5)
-    time.sleep(1.0)
+    motor.forward(1.0)
+    time.sleep(3.0)
 
         # Back to center again
     print("Now stop")
     motor.stop()
-    time.sleep(1.0)
+    time.sleep(3.0)
 
     motor.cleanup()
     print("=== Test Finished ===\n")

@@ -22,14 +22,14 @@ class MotorController:
         if config.USE_GPIO:
             GPIO.setmode(GPIO.BCM)          
             GPIO.setup(self.pwm_pin, GPIO.OUT)
-            self.pwm = GPIO.PWM(self.pwm_pin, frequency)  #39HZ -> 255 period in PSoC 
+            self.pwm = GPIO.PWM(self.pwm_pin, self.frequency)  #39HZ -> 255 period in PSoC 
             self.pwm.start(0); # % dutcy cycle
 
         if config.DEBUG_MOTOR:
             print(f"[Motor] Initialized on pin {self.pwm_pin} at {self.frequency} Hz")
 
-    def forward(self, speed: float):        # check calculation
-        duty = max(0.0, min(1.0, speed)) * 100.0 
+    def forward(self, speed: float):       # speed in percentage of total 0-1.0
+        duty = config.MOTOR_MAX * speed
 
         if config.USE_GPIO:
             self.pwm.ChangeDutyCycle(duty)
