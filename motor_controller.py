@@ -22,7 +22,7 @@ class MotorController:
         if config.USE_GPIO:
             GPIO.setmode(GPIO.BCM)          
             GPIO.setup(self.pwm_pin, GPIO.OUT)
-            self.pwm = GPIO.PWM(self.pwm_pin, 39)  #39HZ -> 255 period in PSoC 
+            self.pwm = GPIO.PWM(self.pwm_pin, frequency)  #39HZ -> 255 period in PSoC 
             self.pwm.start(0); # % dutcy cycle
 
         if config.DEBUG_MOTOR:

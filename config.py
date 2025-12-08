@@ -14,27 +14,25 @@ ToF_DIGITAL_PIN = 10 # SET THIS
 ToF_ACTIVE_HIGH = True 
 
 # State machine behavior timing
-STOP_SECONDS = 2.0      # pause time at user
+STOP_SECONDS = 4.0      # pause time at user
 RETURN_MARGIN = 0.5     # buffer for return time 
 
 
-# PWM Configuration
-PWM_FREQUENCY_MOTOR = 100 
-PWM_FREQUENCY_SERVO = 50
+# Motor Control Values (PWM duty cycle percentages
+PWM_FREQUENCY_MOTOR = 40  #Hz 
 
-# Motor Control Values (PWM duty cycle percentages)
 MOTOR_STOP = 0.0      # 0% duty cycle = stopped
-MOTOR_SLOW = 0.3       # 30% duty cycle = slow speed
-MOTOR_MEDIUM = 0.5     # 50% duty cycle = medium speed
-MOTOR_FAST = 0.7       # 70% duty cycle = fast speed
-MOTOR_MAX = 1.0        # 100% duty cycle = maximum speed
+MOTOR_SLOW = 5.0       # 30% duty cycle = slow speed
+MOTOR_MAX = 9.6        # 100% duty cycle = maximum speed
 
 # Servo Control Values (PWM duty cycle percentages)
-SERVO_CENTER = 0.075   # 7.5% = center position (straight)
-SERVO_LEFT_MAX = 0.05  # 5% = full left
-SERVO_RIGHT_MAX = 0.10 # 10% = full right
-SERVO_LEFT_SLIGHT = 0.065  # Slight left turn
-SERVO_RIGHT_SLIGHT = 0.085 # Slight right turn
+PWM_FREQUENCY_SERVO = 50 #HZ
+
+SERVO_CENTER = 8.0   # 7.5% = center position (straight)
+SERVO_LEFT_MAX = 5.0  # 5% = full left
+SERVO_RIGHT_MAX = 11.0 # 10% = full right
+SERVO_LEFT_SLIGHT = 6.5  # Slight left turn
+SERVO_RIGHT_SLIGHT = 9.5 # Slight right turn
 
 # Visual Detection Configuration
 CAMERA_WIDTH = 640

@@ -27,7 +27,7 @@ class ServoController:
         if config.USE_GPIO:
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(self.pwm_pin, GPIO.OUT)
-            self.pwm = GPIO.PWM(self.pwm_pin, self.frequency)
+            self.pwm = GPIO.PWM(self.pwm_pin, self.frequency) # 45 Hz matching
             self.pwm.start(self.center_duty)
 
         if config.DEBUG_SERVO:
