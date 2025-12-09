@@ -21,18 +21,16 @@ RETURN_MARGIN = 0.5     # buffer for return time
 # Motor Control Values (PWM duty cycle percentages
 PWM_FREQUENCY_MOTOR = 40  #Hz 
 
-MOTOR_STOP = 0.0      # 0% duty cycle = stopped
-MOTOR_SLOW = 5.0       # 30% duty cycle = slow speed
+MOTOR_STOP = 100      # 0% duty cycle = stopped
+MOTOR_SLOW = 98.0       # 30% duty cycle = slow speed
 MOTOR_MAX = 92.7        # 100% duty cycle = maximum speed
 
 # Servo Control Values (PWM duty cycle percentages)
 PWM_FREQUENCY_SERVO = 50 #HZ
 
-SERVO_CENTER = 8.0   # 7.5% = center position (straight)
-SERVO_LEFT_MAX = 5.0  # 5% = full left
-SERVO_RIGHT_MAX = 11.0 # 10% = full right
-SERVO_LEFT_SLIGHT = 6.5  # Slight left turn
-SERVO_RIGHT_SLIGHT = 9.5 # Slight right turn
+SERVO_CENTER = 92.675   # 7.5% = center position (straight)
+SERVO_LEFT_MAX = 95.422  # 5% = full left
+SERVO_RIGHT_MAX = 89.318 # 10% = full right
 
 # Visual Detection Configuration
 CAMERA_WIDTH = 640
