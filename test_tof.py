@@ -11,10 +11,17 @@ import config
 def main():
     print("\n === Testing Tof Sensor ===")
     print(f"USE_GPIO = {config.USE_GPIO}")
-
+    print("Reading sensor for 10 seconds... \n")
+    
     tof = ToFSensor()
 
-    print(f"ToF initial state", tof.detect())
+    start = time.time()
+    while time.time() - start < 10.0:
+        state = tof.state()
+        print(f"ToF state: {state}")
+        time.sleep(0.1)
+
+    print("\nDone :p")
 
 
 if __name__ == '__main__':
