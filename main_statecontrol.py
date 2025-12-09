@@ -79,7 +79,7 @@ class BinDieselSystem:
         """
         IDLE: wait for wake word.
         """
-        print("Entered: " {self.sm.get_state()})
+        print({self.sm.get_state()})
         self.motor.stop()
         self.servo.center()
 
@@ -98,7 +98,7 @@ class BinDieselSystem:
         DRIVING_TO_USER: follow the person using camera angle.
         Stop when TOF digital says "close enough".
         """
-        print("Entered: " {self.sm.get_state()})
+        print({self.sm.get_state()})
         # Update vision
         result = self.visual.update()
 
@@ -129,7 +129,7 @@ class BinDieselSystem:
         """
         STOPPED_AT_USER: wait fixed time, then start returning.
         """
-        print("Entered: " {self.sm.get_state()})
+        print({self.sm.get_state()})
         t = self.sm.get_time_in_state()
         if t == 0:
             # just entered
@@ -153,7 +153,7 @@ class BinDieselSystem:
         RETURNING: drive back for same time we drove forward (plus margin),
         then stop and go to IDLE.
         """
-        print("Entered: " {self.sm.get_state()})
+        print({self.sm.get_state()})
         
         elapsed = time.time() - self.return_start_time
         total = self.sm.forward_elapsed_time + config.RETURN_MARGIN
