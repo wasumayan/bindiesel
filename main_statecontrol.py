@@ -79,7 +79,7 @@ class BinDieselSystem:
         """
         IDLE: wait for wake word.
         """
-        print("Entered {self.sm.get_state()}")
+        print("Entered: " {self.sm.get_state()})
         self.motor.stop()
         self.servo.center()
 
@@ -98,7 +98,7 @@ class BinDieselSystem:
         DRIVING_TO_USER: follow the person using camera angle.
         Stop when TOF digital says "close enough".
         """
-        print("Entered {self.sm.get_state()}")
+        print("Entered: " {self.sm.get_state()})
         # Update vision
         result = self.visual.update()
 
@@ -116,12 +116,12 @@ class BinDieselSystem:
             self.servo.center()
 
             # Record how long we drove forward
-            if self.forward_start_time is not None:
-                self.forward_duration = time.time() - self.forward_start_time
+            if self.sm.forward_start_time is not None:
+                self.sm.forward_elapsed_time = time.time() - self.sm.forward_start_time
             else:
-                self.forward_duration = 0.0
+                self.sm.forward_elapsed_time = 0.0
 
-            print(f"[Main] Forward duration = {self.forward_duration:.2f}s")
+            print(f"[Main] Forward duration = {self.sm.forward_elapsed_time:.2f}s")
 
             self.sm.transition_to(State.STOPPED_AT_USER)
 
@@ -129,7 +129,7 @@ class BinDieselSystem:
         """
         STOPPED_AT_USER: wait fixed time, then start returning.
         """
-        print("Entered {self.sm.get_state()}")
+        print("Entered: " {self.sm.get_state()})
         t = self.sm.get_time_in_state()
         if t == 0:
             # just entered
@@ -153,10 +153,10 @@ class BinDieselSystem:
         RETURNING: drive back for same time we drove forward (plus margin),
         then stop and go to IDLE.
         """
-        print("Entered {self.sm.get_state()}")
+        print("Entered: " {self.sm.get_state()})
         
         elapsed = time.time() - self.return_start_time
-        total = self.forward_duration + config.RETURN_MARGIN
+        total = self.sm.forward_elapsed_time + config.RETURN_MARGIN
 
         if elapsed >= total:
             print("[Main] Return complete, entering IDLE.")
