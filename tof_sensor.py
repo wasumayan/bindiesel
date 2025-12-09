@@ -27,7 +27,7 @@ class ToFSensor:
            return val 
         
         if config.DEBUG_TOF:
-            print(f"Input value:  {GPIO.input(config.ToF_DIGITAL_PIN)}"); 
+            print(f"{GPIO.input(config.ToF_DIGITAL_PIN)}"); 
     
     def detect(self) -> bool: 
         state = self.state()
