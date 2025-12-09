@@ -21,8 +21,7 @@ RETURN_MARGIN = 0.5     # buffer for return time
 # Motor Control Values (PWM duty cycle percentages
 PWM_FREQUENCY_MOTOR = 40  #Hz 
 
-MOTOR_STOP = 99.9      # 0% duty cycle = stopped
-MOTOR_SLOW = 98.0       # 30% duty cycle = slow speed
+MOTOR_STOP = 100.0      # 0% duty cycle = stopped
 MOTOR_MAX = 92.7        # 100% duty cycle = maximum speed
 
 # Servo Control Values (PWM duty cycle percentages)

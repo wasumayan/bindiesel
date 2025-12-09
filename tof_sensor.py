@@ -24,10 +24,12 @@ class ToFSensor:
     def state(self) -> bool:
         if config.USE_GPIO:    
            val = bool(GPIO.input(config.ToF_DIGITAL_PIN))
-           return val 
+        else: val = False
         
         if config.DEBUG_TOF:
-            print(f"{GPIO.input(config.ToF_DIGITAL_PIN)}"); 
+            print(f"[ToF] State -> {val}"); 
+
+        return val
     
     def detect(self) -> bool: 
         state = self.state()

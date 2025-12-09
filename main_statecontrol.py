@@ -26,20 +26,21 @@ class BinDieselSystem:
         print("Bin Diesel (minimal) starting up...")
         print("=" * 60)
 
-        # State machine
+        # Initialize state machine
         self.sm = StateMachine()
 
-        # Wake word
-        print("[Main] Initializing wake word detector...")
+        # Initialize wake word
+        print("[Main] Initializing wake word detector...")   
         wake_word_model_path = config.WAKE_WORD_MODEL_PATH if hasattr(config, "WAKE_WORD_MODEL_PATH") else \
             os.path.join(os.path.dirname(__file__), "bin-diesel_en_raspberry-pi_v3_0_0", "bin-diesel_en_raspberry-pi_v3_0_0.ppn")
+        
         self.wake = WakeWordDetector(
             model_path=wake_word_model_path,
             access_key=getattr(config, "WAKE_WORD_ACCESS_KEY", None)
         )
         self.wake.start_listening()
 
-        # Visual detector (angle + person detection)
+        # Initialize visual detector
         print("[Main] Initializing visual detector...")
         self.visual = VisualDetector(
             model_path=getattr(config, "YOLO_MODEL", "yolo11n.pt"),
@@ -48,12 +49,13 @@ class BinDieselSystem:
             confidence=getattr(config, "YOLO_CONFIDENCE", 0.25)
         )
 
-        # Motor + servo
+        # Initialize motor + servo
         print("[Main] Initializing motor + servo...")
         self.motor = MotorController(
             pwm_pin=config.MOTOR_PWM_PIN,
             frequency=config.PWM_FREQUENCY_MOTOR
         )
+        self.motor.stop()
         self.servo = ServoController(
             pwm_pin=config.SERVO_PWM_PIN,
             frequency=config.PWM_FREQUENCY_SERVO,
@@ -61,19 +63,13 @@ class BinDieselSystem:
             left_max_duty=config.SERVO_LEFT_MAX_DUTY,
             right_max_duty=config.SERVO_RIGHT_MAX_DUTY
         )
+        self.servo.center()
 
         # TOF (digital input from Arduino)
         print("[Main] Initializing TOF (digital input)...")
-        self.tof = TOFSensor(
-            stop_distance_mm=None,
-            emergency_distance_mm=None
-        )
+        self.tof = ToFSensor()
 
-        # For forward/return timing
-        self.forward_start_time = None
-        self.forward_duration   = 0.0
-
-        print("=" * 60)
+        print("=" * 60) 
         print("System ready. Say 'bin diesel' to start.")
         print("=" * 60)
 
@@ -83,12 +79,18 @@ class BinDieselSystem:
         """
         IDLE: wait for wake word.
         """
-        if self.wake.detect():
-            print("[Main] Wake word detected; starting forward drive.")
-            self.servo.center()
-            self.motor.forward(config.MOTOR_FORWARD_SPEED)
+        print("Entered {self.sm.get_state()}")
+        self.motor.stop()
+        self.servo.center()
 
-            self.forward_start_time = time.time()
+        if self.wake.detect():
+            print("[Main] Wake word detected.")
+           
+           
+            self.servo.center()
+            self.motor.forward(1.0)
+
+            self.sm.forward_start_time = time.time()
             self.sm.transition_to(State.DRIVING_TO_USER)
 
     def handle_driving_to_user(self):
@@ -96,23 +98,19 @@ class BinDieselSystem:
         DRIVING_TO_USER: follow the person using camera angle.
         Stop when TOF digital says "close enough".
         """
+        print("Entered {self.sm.get_state()}")
         # Update vision
         result = self.visual.update()
 
         if result["person_detected"]:
             angle = result["angle"] or 0.0
-            # Option: clamp angle to [-45, +45]
-            if angle < -45.0:
-                angle = -45.0
-            if angle > 45.0:
-                angle = 45.0
             self.servo.set_angle(angle)
         else:
             # If we lose the person, you might just center servo
             self.servo.center()
 
         # Check TOF
-        if self.tof.is_too_close():
+        if self.tof.detect():
             print("[Main] TOF triggered - stopping at user.")
             self.motor.stop()
             self.servo.center()
@@ -131,22 +129,23 @@ class BinDieselSystem:
         """
         STOPPED_AT_USER: wait fixed time, then start returning.
         """
+        print("Entered {self.sm.get_state()}")
         t = self.sm.get_time_in_state()
         if t == 0:
             # just entered
             print("[Main] Waiting for trash drop-off...")
-        if t >= config.STOP_HOLD_SECONDS:
+        if t >= config.STOP_SECONDS:
             print("[Main] Done waiting; returning to start.")
             # Turn 180°: crude version: servo hard left/right + motor forward a bit.
             self.servo.set_angle(45.0)  # for example
-            self.motor.forward(config.MOTOR_FORWARD_SPEED)
+            self.motor.forward(1.0)
             time.sleep(1.5)  # tune this later
             self.motor.stop()
             self.servo.center()
 
             # Now drive back for same duration as forward
             self.return_start_time = time.time()
-            self.motor.forward(config.MOTOR_RETURN_SPEED)
+            self.motor.forward(1.0)
             self.sm.transition_to(State.RETURNING)
 
     def handle_returning(self):
@@ -154,8 +153,10 @@ class BinDieselSystem:
         RETURNING: drive back for same time we drove forward (plus margin),
         then stop and go to IDLE.
         """
+        print("Entered {self.sm.get_state()}")
+        
         elapsed = time.time() - self.return_start_time
-        total = self.forward_duration + config.RETURN_EXTRA_MARGIN
+        total = self.forward_duration + config.RETURN_MARGIN
 
         if elapsed >= total:
             print("[Main] Return complete, entering IDLE.")

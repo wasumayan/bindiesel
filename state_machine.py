@@ -35,46 +35,36 @@ class StateMachine:
         return time.time() - self.state_enter_time
     
     def transition_to(self, new_state: State):
+
         if config.DEBUG_STATE:
             print(f"[SM] {self.state.name} -> {new_state.name}")
+       
         self.state = new_state
         self.state_enter_time = time.time()
     
     def set_start_position(self, position):
-        """
-        Set starting position for return navigation
-        
-        Args:
-            position: Starting position (can be any format, e.g., (x, y) or None)
-        """
         self.start_position = position
         print(f"[StateMachine] Start position set: {position}")
     
     def get_start_position(self):
-        """Get starting position"""
         return self.start_position
 
 
 if __name__ == '__main__':
-    # Test state machine
     print("Testing state machine...")
-    
-    sm = StateMachine(tracking_timeout=30.0)
-    
-    # Simulate workflow
-    print(f"Current state: {sm.get_state().value}")
-    
-    sm.transition_to(State.ACTIVE)
-    time.sleep(0.1)
-    print(f"Time in state: {sm.get_time_in_state():.2f}s")
-    
-    sm.transition_to(State.TRACKING_USER)
-    time.sleep(0.1)
-    print(f"Time in state: {sm.get_time_in_state():.2f}s")
-    
-    sm.transition_to(State.FOLLOWING_USER)
-    time.sleep(0.1)
-    print(f"Time in state: {sm.get_time_in_state():.2f}s")
-    
+
+    sm = StateMachine()
+
+    print(f"Current state: {sm.get_state().name}")
+    time.sleep(0.5)
+
+    sm.transition_to(State.DRIVING_TO_USER)
+    time.sleep(0.5)
+    print(f"State: {sm.get_state().name}, time in state: {sm.get_time_in_state():.2f}s")
+
+    sm.transition_to(State.STOPPED_AT_USER)
+    time.sleep(0.5)
+    print(f"State: {sm.get_state().name}, time in state: {sm.get_time_in_state():.2f}s")
+
     print("State machine test complete!")
 
