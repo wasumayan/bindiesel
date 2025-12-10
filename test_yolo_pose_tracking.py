@@ -366,7 +366,7 @@ class YOLOPoseTracker:
                         # Calculate arm angles (60-90 degrees raised to side)
                         # Swap left/right if camera is rotated (config.CAMERA_SWAP_LEFT_RIGHT)
                         # Enable debug if flag is set, or for first person detected
-                        debug_arm = self.debug_mode or (track_id is not None and track_id == 1 and main._frame_counter % 30 == 0)  # Debug periodically for person ID 1
+                        debug_arm = self.debug_mode or (track_id is not None and track_id == 1 and self._frame_counter % 30 == 0)  # Debug periodically for person ID 1
                         
                         if config.CAMERA_SWAP_LEFT_RIGHT:
                             # When camera is rotated 180°, swap left/right detection
