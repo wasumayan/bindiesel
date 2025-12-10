@@ -31,3 +31,7 @@ runs/
 # Keep models/ directory (trained models for git)
 !models/
 !models/**/*.pt
+
+# Log files
+logs/
+*.log

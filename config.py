@@ -42,9 +42,13 @@ CAMERA_SWAP_RB = True  # Swap red and blue channels (fixes color swap issue)
 CAMERA_SWAP_LEFT_RIGHT = True  # Swap left/right arm detection (needed when camera is rotated 180°)
 YOLO_MODEL = 'yolo11n.pt'  # YOLO nano model for speed (object detection)
 YOLO_POSE_MODEL = 'yolo11n-pose.pt'  # YOLO pose model (for pose estimation + tracking)
-YOLO_HAND_MODEL = None  # Path to trained hand-keypoints model (e.g., 'runs/pose/hand_keypoints/weights/best.pt')
-                          # Train with: yolo pose train data=hand-keypoints.yaml model=yolo11n-pose.pt epochs=100
-                          # Or use: python train_hand_keypoints.py
+YOLO_OBB_MODEL = 'yolo11n-obb.pt'  # YOLO OBB model (oriented bounding boxes for trash detection)
+YOLO_CLOTHING_MODEL = None  # Path to trained clothing detection model (for RADD mode)
+                                  # See: https://github.com/kesimeg/YOLO-Clothing-Detection
+                                  # Set to model path after training/downloading
+                                  # Example: 'models/clothing/best.pt'
+RADD_VIOLATION_TIMEOUT = 2.0  # Seconds before removing violator from tracking if not seen
+YOLO_HAND_MODEL = 'models/hand_keypoints/weights/best.pt' #YOLO for hand keypoints for manual mode!
 HAND_MODEL_PATH = YOLO_HAND_MODEL  # Alias for compatibility
 HAND_GESTURE_HOLD_TIME = 0.5  # Seconds gesture must be held before executing
 YOLO_CONFIDENCE = 0.25
@@ -53,8 +57,8 @@ ANGLE_TO_STEERING_GAIN = 0.5  # How much to turn based on angle
 TRACKING_TIMEOUT = 30.0  # Seconds before returning to idle if no user detected
 
 # Arm Angle Detection Configuration
-ARM_ANGLE_MIN = 55.0  # Minimum angle from vertical (degrees) - was 60
-ARM_ANGLE_MAX = 95.0  # Maximum angle from vertical (degrees) - was 90
+ARM_ANGLE_MIN = 60.0  # Minimum angle from vertical (degrees) - 0° = straight down, 90° = T-pose (horizontal)
+ARM_ANGLE_MAX = 90.0  # Maximum angle from vertical (degrees) - 0° = straight down, 90° = T-pose (horizontal)
 ARM_KEYPOINT_CONFIDENCE = 0.4  # Minimum keypoint confidence (lower = more lenient)
 ARM_MIN_HORIZONTAL_EXTENSION = 30  # Minimum horizontal extension in pixels
 ARM_HORIZONTAL_RATIO = 0.8  # Minimum horizontal/vertical ratio (0.8 = more horizontal)
@@ -83,6 +87,13 @@ EMERGENCY_STOP_ENABLED = True  # Enable TOF emergency stop
 TOF_STOP_DISTANCE_MM = 300  # Stop when within 30cm
 TOF_EMERGENCY_DISTANCE_MM = 100  # Emergency stop when within 10cm
 
+# Performance Configuration
+ENABLE_FRAME_CACHING = True  # Cache frames to reduce redundant captures
+FRAME_CACHE_TTL = 0.05  # Frame cache time-to-live (seconds)
+VISUAL_UPDATE_INTERVAL = 0.1  # Visual detection update interval (seconds)
+ENABLE_PERFORMANCE_MONITORING = True  # Track FPS and performance metrics
+FRAME_SKIP_INTERVAL = 1  # Process every Nth frame (1 = all frames, 2 = every other, etc.)
+
 # Debug Configuration
 DEBUG_MODE = True  # Enable debug logging throughout system
 DEBUG_VISUAL = True  # Debug visual detection specifically
@@ -91,4 +102,5 @@ DEBUG_SERVO = True  # Debug servo commands
 DEBUG_TOF = True  # Debug TOF sensor readings
 DEBUG_VOICE = True  # Debug voice recognition
 DEBUG_STATE = True  # Debug state machine transitions
+DEBUG_PERFORMANCE = False  # Debug performance metrics
 

@@ -114,7 +114,7 @@ class YOLOPoseTracker:
         
         return array
     
-    def calculate_arm_angle(self, keypoints, arm_side='left'):
+    def calculate_arm_angle(self, keypoints, arm_side='left', debug=False):
         """
         Calculate arm angle from YOLO pose keypoints (60-90 degrees from vertical)
         Robust detection for arm raised to the side with trash in hand
@@ -122,6 +122,7 @@ class YOLOPoseTracker:
         Args:
             keypoints: YOLO keypoints array (shape: [num_keypoints, 3] where 3 = [x, y, confidence])
             arm_side: 'left' or 'right'
+            debug: If True, print diagnostic information
             
         Returns:
             Angle in degrees (60-90), or None if not detected
@@ -145,9 +146,15 @@ class YOLOPoseTracker:
             wrist_idx = 10
         
         # Check if keypoints are visible (confidence threshold)
-        if (keypoints[shoulder_idx][2] < 0.4 or 
-            keypoints[elbow_idx][2] < 0.4 or 
-            keypoints[wrist_idx][2] < 0.4):
+        shoulder_conf = keypoints[shoulder_idx][2]
+        elbow_conf = keypoints[elbow_idx][2]
+        wrist_conf = keypoints[wrist_idx][2]
+        
+        if (shoulder_conf < config.ARM_KEYPOINT_CONFIDENCE or 
+            elbow_conf < config.ARM_KEYPOINT_CONFIDENCE or 
+            wrist_conf < config.ARM_KEYPOINT_CONFIDENCE):
+            if debug:
+                print(f"  [{arm_side.upper()} ARM] Low confidence: shoulder={shoulder_conf:.2f}, elbow={elbow_conf:.2f}, wrist={wrist_conf:.2f} (min={config.ARM_KEYPOINT_CONFIDENCE})")
             return None
         
         # Get keypoint positions
@@ -163,7 +170,13 @@ class YOLOPoseTracker:
         upper_arm_length = np.linalg.norm(upper_arm)
         lower_arm_length = np.linalg.norm(lower_arm)
         
-        if upper_arm_length < 20 or lower_arm_length < 15:  # Minimum pixels
+        # Minimum arm segment lengths (pixels) - adjust based on camera distance
+        min_upper_arm = 15  # Minimum upper arm length
+        min_lower_arm = 10  # Minimum lower arm length
+        
+        if upper_arm_length < min_upper_arm or lower_arm_length < min_lower_arm:
+            if debug:
+                print(f"  [{arm_side.upper()} ARM] Arm too short: upper={upper_arm_length:.1f}px (min={min_upper_arm}), lower={lower_arm_length:.1f}px (min={min_lower_arm})")
             return None
         
         # Calculate angle of upper arm from VERTICAL (0° = straight down, 90° = horizontal)
@@ -188,22 +201,53 @@ class YOLOPoseTracker:
         horizontal_ratio = abs(upper_arm[0]) / max(abs(upper_arm[1]), 1.0)  # Avoid division by zero
         
         # Robust detection criteria for 60-90 degree arm raise:
-        # 1. Arm angle from vertical is between 60-90 degrees (0-30 degrees from horizontal)
-        # 2. Wrist is at or above shoulder level (raised up)
-        # 3. Arm is extended horizontally (not just straight up)
-        # 4. Elbow is bent (not fully extended, not fully bent)
-        # 5. Arm is extended away from body (horizontal extension)
+        # 0° = arm straight down, 90° = T-pose (horizontal)
+        # 1. Arm angle from vertical is between configured range (60-90 degrees)
+        # 2. Arm is extended horizontally (not just straight up)
+        # 3. Elbow is bent appropriately (not fully extended, not fully bent)
+        # 4. Arm is extended away from body (minimum horizontal extension)
+        # Note: Wrist above shoulder check removed - angle is sufficient
         
-        angle_ok = 55.0 <= angle_from_vertical <= 95.0  # 60-90 degrees from vertical (with margin)
-        wrist_raised = wrist[1] <= shoulder[1] + 30  # Wrist at or above shoulder (with tolerance)
-        horizontal_extended = horizontal_ratio > 0.8  # More horizontal than vertical
-        elbow_bent = 45.0 <= elbow_angle <= 160.0  # Elbow is bent but not too much
-        arm_extended = abs(upper_arm[0]) > 30  # Arm extends at least 30 pixels horizontally
+        angle_ok = config.ARM_ANGLE_MIN <= angle_from_vertical <= config.ARM_ANGLE_MAX
+        horizontal_extended = horizontal_ratio > config.ARM_HORIZONTAL_RATIO
+        elbow_bent = config.ARM_ELBOW_ANGLE_MIN <= elbow_angle <= config.ARM_ELBOW_ANGLE_MAX
+        arm_extended = abs(upper_arm[0]) > config.ARM_MIN_HORIZONTAL_EXTENSION
         
-        # All conditions must be met
-        if (angle_ok and wrist_raised and horizontal_extended and elbow_bent and arm_extended):
+        # Debug output
+        if debug:
+            print(f"  [{arm_side.upper()} ARM] Diagnostics:")
+            print(f"    Angle from vertical: {angle_from_vertical:.1f}° (range: {config.ARM_ANGLE_MIN}-{config.ARM_ANGLE_MAX}, 0°=down, 90°=T-pose) {'✓' if angle_ok else '✗'}")
+            print(f"    Horizontal ratio: {horizontal_ratio:.2f} > {config.ARM_HORIZONTAL_RATIO} {'✓' if horizontal_extended else '✗'}")
+            print(f"    Elbow angle: {elbow_angle:.1f}° (range: {config.ARM_ELBOW_ANGLE_MIN}-{config.ARM_ELBOW_ANGLE_MAX}) {'✓' if elbow_bent else '✗'}")
+            print(f"    Horizontal extension: {abs(upper_arm[0]):.1f}px > {config.ARM_MIN_HORIZONTAL_EXTENSION} {'✓' if arm_extended else '✗'}")
+        
+        # All conditions must be met for strict detection (4 conditions, wrist check removed)
+        strict_detection = (angle_ok and horizontal_extended and elbow_bent and arm_extended)
+        
+        # Also try a more lenient detection (just angle and basic extension)
+        lenient_detection = (angle_ok and arm_extended and elbow_bent)
+        
+        if strict_detection:
+            if debug:
+                print(f"  [{arm_side.upper()} ARM] ✓ DETECTED (strict)! Angle: {angle_from_vertical:.1f}°")
+            return angle_from_vertical
+        elif lenient_detection:
+            # More lenient: just check angle is in range and arm is extended
+            if debug:
+                print(f"  [{arm_side.upper()} ARM] ✓ DETECTED (lenient)! Angle: {angle_from_vertical:.1f}°")
             return angle_from_vertical
         
+        if debug:
+            failed_conditions = []
+            if not angle_ok:
+                failed_conditions.append(f"angle({angle_from_vertical:.1f}° not in {config.ARM_ANGLE_MIN}-{config.ARM_ANGLE_MAX}°)")
+            if not horizontal_extended:
+                failed_conditions.append(f"horizontal_ratio({horizontal_ratio:.2f} <= {config.ARM_HORIZONTAL_RATIO})")
+            if not elbow_bent:
+                failed_conditions.append(f"elbow({elbow_angle:.1f}° not in {config.ARM_ELBOW_ANGLE_MIN}-{config.ARM_ELBOW_ANGLE_MAX}°)")
+            if not arm_extended:
+                failed_conditions.append(f"extension({abs(upper_arm[0]):.1f}px <= {config.ARM_MIN_HORIZONTAL_EXTENSION}px)")
+            print(f"  [{arm_side.upper()} ARM] ✗ Not detected. Failed: {', '.join(failed_conditions)}")
         return None
     
     def detect(self, frame):
@@ -227,13 +271,16 @@ class YOLOPoseTracker:
         
         # Run YOLO inference with tracking
         # Use track mode for object tracking (per YOLO docs: https://docs.ultralytics.com/modes/track/)
+        # Optimize: Use half precision if available, reduce image size for speed
         yolo_results = self.model.track(
             frame,
             conf=self.confidence,
             verbose=False,
             persist=True,  # Maintain tracking across frames
             tracker='bytetrack.yaml',  # Fast tracker (or 'botsort.yaml' for better accuracy)
-            show=False  # Don't show results automatically
+            show=False,  # Don't show results automatically
+            half=False,  # Set to True if using GPU (faster but less accurate)
+            imgsz=640  # Use consistent image size for better caching
         )
         
         yolo_result = None
@@ -283,13 +330,16 @@ class YOLOPoseTracker:
                     if class_name == 'person' and keypoints is not None:
                         # Calculate arm angles (60-90 degrees raised to side)
                         # Swap left/right if camera is rotated (config.CAMERA_SWAP_LEFT_RIGHT)
+                        # Enable debug if flag is set, or for first person detected
+                        debug_arm = main.debug_mode or (track_id is not None and track_id == 1 and main._frame_counter % 30 == 0)  # Debug periodically for person ID 1
+                        
                         if config.CAMERA_SWAP_LEFT_RIGHT:
                             # When camera is rotated 180°, swap left/right detection
-                            left_arm_angle = self.calculate_arm_angle(keypoints, 'right')  # Swapped
-                            right_arm_angle = self.calculate_arm_angle(keypoints, 'left')  # Swapped
+                            left_arm_angle = self.calculate_arm_angle(keypoints, 'right', debug=debug_arm)  # Swapped
+                            right_arm_angle = self.calculate_arm_angle(keypoints, 'left', debug=debug_arm)  # Swapped
                         else:
-                            left_arm_angle = self.calculate_arm_angle(keypoints, 'left')
-                            right_arm_angle = self.calculate_arm_angle(keypoints, 'right')
+                            left_arm_angle = self.calculate_arm_angle(keypoints, 'left', debug=debug_arm)
+                            right_arm_angle = self.calculate_arm_angle(keypoints, 'right', debug=debug_arm)
                         
                         # Note: Hand gestures are handled separately in hand_gesture_controller.py
                         # This pose tracker only detects arm angles for autonomous following
@@ -446,7 +496,12 @@ def main():
                        help='YOLO pose model (yolo11n-pose.pt, yolo11s-pose.pt, etc.)')
     parser.add_argument('--conf', type=float, default=0.25, help='Confidence threshold')
     parser.add_argument('--fps', action='store_true', help='Show FPS counter')
+    parser.add_argument('--debug', action='store_true', help='Enable verbose debug output for arm detection')
     args = parser.parse_args()
+    
+    # Store debug flag globally for use in calculate_arm_angle
+    main.debug_mode = args.debug
+    main._frame_counter = 0  # Initialize frame counter
     
     print("=" * 70)
     print("YOLO Pose Detection + Tracking Test")
@@ -501,15 +556,34 @@ def main():
             if key == ord('q') or key == 27:  # 'q' or ESC
                 break
             
-            # Print to terminal periodically
-            if results['poses']:
-                for pose in results['poses']:
-                    output = f"[TEST] Person ID:{pose.get('track_id', 'N/A')} "
-                    if pose['left_arm_raised']:
-                        output += f"L:{pose['left_arm_angle']:.0f}° "
-                    if pose['right_arm_raised']:
-                        output += f"R:{pose['right_arm_angle']:.0f}° "
-                    print(output)
+            # Print to terminal periodically (every 10 frames to avoid spam)
+            if results['poses'] and len(results['poses']) > 0:
+                # Use a module-level counter
+                if not hasattr(main, '_frame_counter'):
+                    main._frame_counter = 0
+                main._frame_counter += 1
+                
+                if main._frame_counter % 10 == 0:  # Print every 10 frames
+                    for pose in results['poses']:
+                        output = f"[TEST] Person ID:{pose.get('track_id', 'N/A')} "
+                        
+                        # Always show arm angles if calculated (even if not "raised")
+                        left_angle = pose.get('left_arm_angle')
+                        right_angle = pose.get('right_arm_angle')
+                        
+                        if left_angle is not None:
+                            status = "✓" if pose['left_arm_raised'] else "✗"
+                            output += f"L:{left_angle:.0f}°{status} "
+                        else:
+                            output += "L:-- "
+                            
+                        if right_angle is not None:
+                            status = "✓" if pose['right_arm_raised'] else "✗"
+                            output += f"R:{right_angle:.0f}°{status} "
+                        else:
+                            output += "R:-- "
+                        
+                        print(output)
     
     except KeyboardInterrupt:
         print("\n[TEST] Interrupted by user")

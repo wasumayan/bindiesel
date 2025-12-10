@@ -17,6 +17,7 @@ class State(Enum):
     STOPPED = auto()
     RETURNING_TO_START = auto()
     MANUAL_MODE = auto()
+    RADD_MODE = auto()  # Drive towards users not wearing full pants or closed-toe shoes
     # Legacy states (for compatibility)
     DRIVING_TO_USER = auto()
     STOPPED_AT_USER = auto()

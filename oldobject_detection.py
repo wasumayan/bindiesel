@@ -22,6 +22,18 @@ except ImportError:
     print("Install with: pip3 install --break-system-packages ultralytics")
     sys.exit(1)
 
+# Import config for camera settings
+try:
+    import config
+except ImportError:
+    print("WARNING: config.py not found, using default camera settings")
+    # Default config values if config.py doesn't exist
+    class config:
+        CAMERA_ROTATION = 0
+        CAMERA_FLIP_HORIZONTAL = False
+        CAMERA_FLIP_VERTICAL = False
+        CAMERA_SWAP_RB = False
+
 
 # Configuration
 # Camera Module 3 Wide: 102° horizontal FOV, supports up to 2304x1296
@@ -95,8 +107,28 @@ def detect(width=DISPLAY_WIDTH, height=DISPLAY_HEIGHT, model_name=MODEL_NAME,
     
     try:
         while True:
-            # Capture frame from picamera2
+            # Capture frame from picamera2 (returns RGB)
             array = picam2.capture_array()
+            
+            # Apply camera rotation if configured
+            if config.CAMERA_ROTATION == 180:
+                array = cv2.rotate(array, cv2.ROTATE_180)
+            elif config.CAMERA_ROTATION == 90:
+                array = cv2.rotate(array, cv2.ROTATE_90_CLOCKWISE)
+            elif config.CAMERA_ROTATION == 270:
+                array = cv2.rotate(array, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            
+            # Apply flips if configured
+            if config.CAMERA_FLIP_HORIZONTAL:
+                array = cv2.flip(array, 1)  # Horizontal flip
+            if config.CAMERA_FLIP_VERTICAL:
+                array = cv2.flip(array, 0)  # Vertical flip
+            
+            # Fix color channel swap (red/blue)
+            if config.CAMERA_SWAP_RB:
+                # Swap red and blue channels: RGB -> BGR -> RGB (swaps R and B)
+                array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+                array = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
             
             # Convert RGB to BGR for OpenCV
             frame = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
