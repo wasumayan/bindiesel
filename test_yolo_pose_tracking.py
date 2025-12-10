@@ -68,16 +68,57 @@ class YOLOPoseTracker:
         
         # Initialize camera
         print("[YOLOPoseTracker] Initializing camera...")
+        self.picam2 = None
         try:
+            # Create camera instance
             self.picam2 = Picamera2()
+            
+            # Create preview configuration with FPS control
             preview_config = self.picam2.create_preview_configuration(
-                main={"size": (width, height), "format": "RGB888"}
+                main={"size": (width, height), "format": "RGB888"},
+                controls={"FrameRate": config.CAMERA_FPS}  # Set target FPS
             )
+            
+            # Configure camera (this must complete before start)
             self.picam2.configure(preview_config)
+            
+            # Start camera and wait for initialization to complete
             self.picam2.start()
-            time.sleep(0.5)  # Let camera stabilize
+            
+            # Wait for camera to fully initialize (allocator needs time to set up)
+            time.sleep(1.5)  # Increased wait time for allocator initialization
+            
+            # Verify camera is ready by attempting a capture
+            # This ensures the allocator is properly set up
+            try:
+                # Use capture_array with wait=True to ensure allocator is ready
+                test_frame = self.picam2.capture_array(wait=True)
+                if test_frame is None or test_frame.size == 0:
+                    raise RuntimeError("Camera test frame capture returned empty frame")
+                print(f"[YOLOPoseTracker] Camera test frame captured: {test_frame.shape}")
+            except Exception as e:
+                # If test capture fails, try one more time after a short wait
+                time.sleep(0.5)
+                try:
+                    test_frame = self.picam2.capture_array(wait=True)
+                    if test_frame is None or test_frame.size == 0:
+                        raise RuntimeError("Camera test frame capture failed after retry")
+                except Exception as e2:
+                    raise RuntimeError(f"Camera allocator not ready: {e2}")
+            
             print(f"[YOLOPoseTracker] Camera started: {width}x{height}")
         except Exception as e:
+            # Clean up on error
+            if self.picam2:
+                try:
+                    self.picam2.stop()
+                except:
+                    pass
+                try:
+                    self.picam2.close()
+                except:
+                    pass
+                self.picam2 = None
             raise RuntimeError(f"Failed to initialize camera: {e}")
         
         # Tracking state
@@ -92,7 +133,8 @@ class YOLOPoseTracker:
         Returns:
             Frame in RGB format
         """
-        array = self.picam2.capture_array()  # Returns RGB
+        # Use wait=True to ensure allocator is ready before capture
+        array = self.picam2.capture_array(wait=True)  # Returns RGB
         
         # Apply camera rotation if configured
         if config.CAMERA_ROTATION == 180:

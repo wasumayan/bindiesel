@@ -10,7 +10,6 @@ USE_GPIO = True    # disables GPIO for local testing
 MOTOR_PWM_PIN = 12  # GPIO12 pin 32 motor speed control
 SERVO_PWM_PIN = 13  # GPIO13 pin 33 for servo steering control
 ToF_DIGITAL_PIN = 23 # GPIO23 pin 16 
-
 ToF_ACTIVE_HIGH = True 
 
 # State machine behavior timing
@@ -35,6 +34,7 @@ SERVO_RIGHT_MAX = 89.318
 # Visual Detection Configuration
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
+CAMERA_FPS = 120  # Target camera FPS (Raspberry Pi Camera Module 3 Wide supports up to 50 FPS at 640x480)
 CAMERA_ROTATION = 180  # Rotate camera 180 degrees (0, 90, 180, 270) - set to 180 if camera is upside down
 CAMERA_FLIP_HORIZONTAL = False  # Flip horizontally (mirror)
 CAMERA_FLIP_VERTICAL = False  # Flip vertically
@@ -90,7 +90,7 @@ TOF_EMERGENCY_DISTANCE_MM = 100  # Emergency stop when within 10cm
 # Performance Configuration
 ENABLE_FRAME_CACHING = True  # Cache frames to reduce redundant captures
 FRAME_CACHE_TTL = 0.05  # Frame cache time-to-live (seconds)
-VISUAL_UPDATE_INTERVAL = 0.1  # Visual detection update interval (seconds)
+VISUAL_UPDATE_INTERVAL = 0.05  # Visual detection update interval (seconds) - lower = higher FPS (0.05 = 20 FPS max, 0.033 = 30 FPS max)
 ENABLE_PERFORMANCE_MONITORING = True  # Track FPS and performance metrics
 FRAME_SKIP_INTERVAL = 1  # Process every Nth frame (1 = all frames, 2 = every other, etc.)
 

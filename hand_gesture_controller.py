@@ -101,7 +101,8 @@ class HandGestureController:
                  width=640,
                  height=480,
                  confidence=0.25,
-                 gesture_hold_time=0.5):
+                 gesture_hold_time=0.5,
+                 skip_camera=False):  # Skip camera initialization if sharing camera
         """
         Initialize hand gesture controller
         
@@ -143,19 +144,23 @@ class HandGestureController:
                 print(f"[HandGestureController] WARNING: Failed to load pose model: {e}")
                 self.pose_model = YOLO('yolo11n-pose.pt')  # Auto-download
         
-        # Initialize camera
-        print("[HandGestureController] Initializing camera...")
-        try:
-            self.picam2 = Picamera2()
-            preview_config = self.picam2.create_preview_configuration(
-                main={"size": (width, height), "format": "RGB888"}
-            )
-            self.picam2.configure(preview_config)
-            self.picam2.start()
-            time.sleep(0.5)
-            print(f"[HandGestureController] Camera started: {width}x{height}")
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize camera: {e}")
+        # Initialize camera (skip if sharing camera from another component)
+        self.picam2 = None
+        if not skip_camera:
+            print("[HandGestureController] Initializing camera...")
+            try:
+                self.picam2 = Picamera2()
+                preview_config = self.picam2.create_preview_configuration(
+                    main={"size": (width, height), "format": "RGB888"}
+                )
+                self.picam2.configure(preview_config)
+                self.picam2.start()
+                time.sleep(0.5)
+                print(f"[HandGestureController] Camera started: {width}x{height}")
+            except Exception as e:
+                raise RuntimeError(f"Failed to initialize camera: {e}")
+        else:
+            print("[HandGestureController] Skipping camera initialization (using shared camera)")
         
         # Gesture tracking state
         self.current_gesture = None

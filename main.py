@@ -134,27 +134,11 @@ class BinDieselSystem:
         self._voice_initialized = False
         
         # Initialize hand gesture controller (for manual mode)
-        # Note: We'll share the camera frame from pose tracker to avoid duplicate cameras
-        log_info(self.logger, "Initializing hand gesture controller...")
-        try:
-            self.gesture_controller = HandGestureController(
-                hand_model_path=config.YOLO_HAND_MODEL,  # Use trained hand-keypoints model if available
-                pose_model_path=config.YOLO_POSE_MODEL,  # Fallback to pose model
-                width=config.CAMERA_WIDTH,
-                height=config.CAMERA_HEIGHT,
-                confidence=config.YOLO_CONFIDENCE,
-                gesture_hold_time=config.HAND_GESTURE_HOLD_TIME
-            )
-            # Stop the gesture controller's camera since we'll use pose tracker's frame
-            # This avoids having two cameras open simultaneously
-            if hasattr(self.gesture_controller, 'picam2') and self.gesture_controller.picam2:
-                self.gesture_controller.picam2.stop()
-                self.gesture_controller.picam2.close()
-                self.gesture_controller.picam2 = None
-            log_info(self.logger, "Hand gesture controller initialized (using shared camera frame)")
-        except Exception as e:
-            log_warning(self.logger, f"Failed to initialize hand gesture controller: {e}", "Manual mode hand gestures will not be available")
-            self.gesture_controller = None
+        # NOTE: Defer initialization until manual mode is activated to avoid unnecessary initialization
+        # The gesture controller will use frames from YOLOPoseTracker (shared camera)
+        log_info(self.logger, "Hand gesture controller will be initialized on-demand (when entering manual mode)")
+        self.gesture_controller = None
+        self._gesture_controller_initialized = False
         
         # Initialize RADD detector (for RADD mode)
         log_info(self.logger, "Initializing RADD detector...")
@@ -170,7 +154,7 @@ class BinDieselSystem:
         
         # Control flags (running already set at start of __init__)
         self.last_visual_update = 0
-        self.visual_update_interval = 0.1  # Update visual detection every 100ms
+        self.visual_update_interval = config.VISUAL_UPDATE_INTERVAL  # Use configurable update interval
         
         # Performance optimizations
         self.frame_cache = FrameCache(max_age=0.05)  # Cache frames for 50ms
@@ -219,6 +203,30 @@ class BinDieselSystem:
             self.voice = None
             return False
     
+    def _ensure_gesture_controller_initialized(self):
+        """Lazy initialization of hand gesture controller (only when entering manual mode)"""
+        if self._gesture_controller_initialized:
+            return self.gesture_controller is not None
+        
+        self._gesture_controller_initialized = True
+        log_info(self.logger, "Initializing hand gesture controller on-demand...")
+        try:
+            self.gesture_controller = HandGestureController(
+                hand_model_path=config.YOLO_HAND_MODEL,  # Use trained hand-keypoints model if available
+                pose_model_path=config.YOLO_POSE_MODEL,  # Fallback to pose model
+                width=config.CAMERA_WIDTH,
+                height=config.CAMERA_HEIGHT,
+                confidence=config.YOLO_CONFIDENCE,
+                gesture_hold_time=config.HAND_GESTURE_HOLD_TIME,
+                skip_camera=True  # Skip camera initialization - we'll use YOLOPoseTracker's camera
+            )
+            log_info(self.logger, "Hand gesture controller initialized successfully (using shared camera frame)")
+            return True
+        except Exception as e:
+            log_warning(self.logger, f"Failed to initialize hand gesture controller: {e}", "Manual mode hand gestures will not be available")
+            self.gesture_controller = None
+            return False
+    
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
         log_info(self.logger, "Shutdown signal received, cleaning up...")
@@ -248,6 +256,9 @@ class BinDieselSystem:
                     command_upper = command.upper()
                     if command_upper == 'MANUAL_MODE':
                         log_info(self.logger, "Manual mode activated via voice")
+                        # Initialize gesture controller when entering manual mode
+                        if not self._gesture_controller_initialized:
+                            self._ensure_gesture_controller_initialized()
                         self.state_machine.transition_to(State.MANUAL_MODE)
                         self.current_manual_command = None
                         return
@@ -475,6 +486,10 @@ class BinDieselSystem:
     
     def handle_manual_mode_state(self):
         """Handle MANUAL_MODE state - waiting for voice commands and hand gestures"""
+        # Initialize gesture controller on-demand when entering manual mode
+        if not self._gesture_controller_initialized:
+            self._ensure_gesture_controller_initialized()
+        
         # Voice recognizer should already be initialized after wake word detection
         # (initialized in handle_idle_state when wake word is detected)
         voice_command = None
