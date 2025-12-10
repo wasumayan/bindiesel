@@ -51,7 +51,7 @@ RADD_VIOLATION_TIMEOUT = 2.0  # Seconds before removing violator from tracking i
 YOLO_HAND_MODEL = 'models/hand_keypoints/weights/best.pt' #YOLO for hand keypoints for manual mode!
 HAND_MODEL_PATH = YOLO_HAND_MODEL  # Alias for compatibility
 HAND_GESTURE_HOLD_TIME = 0.5  # Seconds gesture must be held before executing
-YOLO_CONFIDENCE = 0.25
+YOLO_CONFIDENCE = 0.01  # Very low confidence to detect everything (confidence boundaries removed)
 PERSON_CENTER_THRESHOLD = 30  # Pixels from center to consider "centered"
 ANGLE_TO_STEERING_GAIN = 0.5  # How much to turn based on angle
 TRACKING_TIMEOUT = 30.0  # Seconds before returning to idle if no user detected
@@ -59,7 +59,7 @@ TRACKING_TIMEOUT = 30.0  # Seconds before returning to idle if no user detected
 # Arm Angle Detection Configuration
 ARM_ANGLE_MIN = 60.0  # Minimum angle from vertical (degrees) - 0° = straight down, 90° = T-pose (horizontal)
 ARM_ANGLE_MAX = 90.0  # Maximum angle from vertical (degrees) - 0° = straight down, 90° = T-pose (horizontal)
-ARM_KEYPOINT_CONFIDENCE = 0.4  # Minimum keypoint confidence (lower = more lenient)
+ARM_KEYPOINT_CONFIDENCE = 0.01  # Minimum keypoint confidence (very low to accept all detections)
 ARM_MIN_HORIZONTAL_EXTENSION = 30  # Minimum horizontal extension in pixels
 ARM_HORIZONTAL_RATIO = 0.8  # Minimum horizontal/vertical ratio (0.8 = more horizontal)
 ARM_WRIST_ABOVE_SHOULDER_TOLERANCE = 30  # Pixels tolerance for wrist above shoulder

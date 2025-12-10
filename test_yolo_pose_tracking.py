@@ -145,16 +145,19 @@ class YOLOPoseTracker:
             elbow_idx = 8
             wrist_idx = 10
         
-        # Check if keypoints are visible (confidence threshold)
+        # Check if keypoints are visible (very low confidence threshold - accept any detection)
         shoulder_conf = keypoints[shoulder_idx][2]
         elbow_conf = keypoints[elbow_idx][2]
         wrist_conf = keypoints[wrist_idx][2]
         
-        if (shoulder_conf < config.ARM_KEYPOINT_CONFIDENCE or 
-            elbow_conf < config.ARM_KEYPOINT_CONFIDENCE or 
-            wrist_conf < config.ARM_KEYPOINT_CONFIDENCE):
+        # Use very low threshold (0.01) to accept almost any keypoint detection
+        min_keypoint_confidence = 0.01  # Was config.ARM_KEYPOINT_CONFIDENCE (0.4)
+        
+        if (shoulder_conf < min_keypoint_confidence or 
+            elbow_conf < min_keypoint_confidence or 
+            wrist_conf < min_keypoint_confidence):
             if debug:
-                print(f"  [{arm_side.upper()} ARM] Low confidence: shoulder={shoulder_conf:.2f}, elbow={elbow_conf:.2f}, wrist={wrist_conf:.2f} (min={config.ARM_KEYPOINT_CONFIDENCE})")
+                print(f"  [{arm_side.upper()} ARM] Low confidence: shoulder={shoulder_conf:.2f}, elbow={elbow_conf:.2f}, wrist={wrist_conf:.2f} (min={min_keypoint_confidence})")
             return None
         
         # Get keypoint positions
@@ -274,7 +277,7 @@ class YOLOPoseTracker:
         # Optimize: Use half precision if available, reduce image size for speed
         yolo_results = self.model.track(
             frame,
-            conf=self.confidence,
+            conf=0.01,  # Very low confidence (0.01) to detect everything - removed confidence boundary
             verbose=False,
             persist=True,  # Maintain tracking across frames
             tracker='bytetrack.yaml',  # Fast tracker (or 'botsort.yaml' for better accuracy)
@@ -494,7 +497,7 @@ def main():
     parser = argparse.ArgumentParser(description='Test YOLO pose detection + tracking')
     parser.add_argument('--model', type=str, default='yolo11n-pose.pt', 
                        help='YOLO pose model (yolo11n-pose.pt, yolo11s-pose.pt, etc.)')
-    parser.add_argument('--conf', type=float, default=0.25, help='Confidence threshold')
+    parser.add_argument('--conf', type=float, default=0.01, help='Confidence threshold (default: 0.01 for maximum detection - confidence boundaries removed)')
     parser.add_argument('--fps', action='store_true', help='Show FPS counter')
     parser.add_argument('--debug', action='store_true', help='Enable verbose debug output for arm detection')
     args = parser.parse_args()
