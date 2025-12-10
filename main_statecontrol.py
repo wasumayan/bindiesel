@@ -182,9 +182,7 @@ class BinDieselSystem:
                     self.sm.transition_to(State.TRACKING_USER)
                     self.sm.set_start_position("origin")  # Store starting position
                     self.path_tracker.start_tracking()  # Start tracking path
-                    conditional_log(self.logger, 'info', 
-                                  "Autonomous mode: User detected with raised arm",
-                                  config.DEBUG_MODE)
+
             except Exception as e:
                 log_error(self.logger, e, "Error in visual detection update")
     
