@@ -310,9 +310,9 @@ class BinDieselSystem:
         # Wait for user to place trash
 
         wait_time = 10.0  # Wait 10 seconds for trash placement
-        if self.state_machine.get_time_in_state() > wait_time:
+        if self.sm.get_time_in_state() > wait_time:
             print("[Main] Trash collection complete, returning to start")
-            self.state_machine.transition_to(State.RETURNING_TO_START)
+            self.sm.transition_to(State.RETURNING_TO_START)
     #################################################################
     #################################################################
     def handle_returning_to_start_state(self):
@@ -325,7 +325,7 @@ class BinDieselSystem:
             self.motor.stop()
             self.servo.center()
             self.path_tracker.stop_tracking()
-            self.state_machine.transition_to(State.IDLE)
+            self.sm.transition_to(State.IDLE)
             return
         
         # Execute reverse path segments

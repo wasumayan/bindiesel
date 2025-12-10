@@ -37,6 +37,9 @@ class BinDieselSystem:
         # Set up logging
         self.logger = setup_logger(__name__)
         
+        # Initialize control flags early to prevent AttributeError
+        self.running = True
+        
         log_info(self.logger, "=" * 70)
         log_info(self.logger, "Bin Diesel System Initializing...")
         log_info(self.logger, "=" * 70)
@@ -129,25 +132,6 @@ class BinDieselSystem:
         log_info(self.logger, "Voice recognizer will be initialized on-demand (to avoid audio conflicts)")
         self.voice = None
         self._voice_initialized = False
-    
-    def _ensure_voice_initialized(self):
-        """Lazy initialization of voice recognizer to avoid audio conflicts"""
-        if self._voice_initialized:
-            return self.voice is not None
-        
-        self._voice_initialized = True
-        log_info(self.logger, "Initializing voice recognizer on-demand...")
-        try:
-            self.voice = VoiceRecognizer(
-                api_key=config.OPENAI_API_KEY,
-                model=config.OPENAI_MODEL
-            )
-            log_info(self.logger, "Voice recognizer initialized successfully")
-            return True
-        except Exception as e:
-            log_warning(self.logger, f"Failed to initialize voice recognizer: {e}", "Manual mode voice commands will not be available")
-            self.voice = None
-            return False
         
         # Initialize hand gesture controller (for manual mode)
         # Note: We'll share the camera frame from pose tracker to avoid duplicate cameras
@@ -184,8 +168,7 @@ class BinDieselSystem:
             log_warning(self.logger, f"Failed to initialize RADD detector: {e}", "RADD mode will not be available")
             self.radd_detector = None
         
-        # Control flags
-        self.running = True
+        # Control flags (running already set at start of __init__)
         self.last_visual_update = 0
         self.visual_update_interval = 0.1  # Update visual detection every 100ms
         
@@ -216,6 +199,25 @@ class BinDieselSystem:
         log_info(self.logger, "Available modes: autonomous, manual, radd")
         log_info(self.logger, "Press Ctrl+C to exit")
         log_info(self.logger, "=" * 70)
+    
+    def _ensure_voice_initialized(self):
+        """Lazy initialization of voice recognizer to avoid audio conflicts"""
+        if self._voice_initialized:
+            return self.voice is not None
+        
+        self._voice_initialized = True
+        log_info(self.logger, "Initializing voice recognizer on-demand...")
+        try:
+            self.voice = VoiceRecognizer(
+                api_key=config.OPENAI_API_KEY,
+                model=config.OPENAI_MODEL
+            )
+            log_info(self.logger, "Voice recognizer initialized successfully")
+            return True
+        except Exception as e:
+            log_warning(self.logger, f"Failed to initialize voice recognizer: {e}", "Manual mode voice commands will not be available")
+            self.voice = None
+            return False
     
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
