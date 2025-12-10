@@ -53,11 +53,11 @@ VOICE_COMMAND_TIMEOUT = 5.0  # Seconds to wait for voice command
 EMERGENCY_STOP_ENABLED = True  # Enable TOF emergency stop
 
 # Debug Configuration
-DEBUG_MODE = True  # Enable debug logging throughout system
+DEBUG_MODE = False  # Enable debug logging throughout system
 DEBUG_VISUAL = True  # Debug visual detection specifically
-DEBUG_MOTOR = True  # Debug motor commands
-DEBUG_SERVO = True  # Debug servo commands
-DEBUG_TOF = True  # Debug TOF sensor readings
-DEBUG_VOICE = True  # Debug voice recognition
-DEBUG_STATE = True  # Debug state machine transitions
+DEBUG_MOTOR = False  # Debug motor commands
+DEBUG_SERVO = False  # Debug servo commands
+DEBUG_TOF = False  # Debug TOF sensor readings
+DEBUG_VOICE = False  # Debug voice recognition
+DEBUG_STATE = False  # Debug state machine transitions
 
