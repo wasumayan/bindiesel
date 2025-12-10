@@ -117,13 +117,14 @@ class YOLOPoseTracker:
     def calculate_arm_angle(self, keypoints, arm_side='left'):
         """
         Calculate arm angle from YOLO pose keypoints (60-90 degrees from vertical)
+        Robust detection for arm raised to the side with trash in hand
         
         Args:
             keypoints: YOLO keypoints array (shape: [num_keypoints, 3] where 3 = [x, y, confidence])
             arm_side: 'left' or 'right'
             
         Returns:
-            Angle in degrees, or None if not detected
+            Angle in degrees (60-90), or None if not detected
         """
         # YOLO pose keypoint indices (17 keypoints total)
         # 0: nose, 1: left_eye, 2: right_eye, 3: left_ear, 4: right_ear
@@ -143,41 +144,64 @@ class YOLOPoseTracker:
             elbow_idx = 8
             wrist_idx = 10
         
-        # Check if keypoints are visible (confidence > 0.5)
-        if (keypoints[shoulder_idx][2] < 0.5 or 
-            keypoints[elbow_idx][2] < 0.5 or 
-            keypoints[wrist_idx][2] < 0.5):
+        # Check if keypoints are visible (confidence threshold)
+        if (keypoints[shoulder_idx][2] < 0.4 or 
+            keypoints[elbow_idx][2] < 0.4 or 
+            keypoints[wrist_idx][2] < 0.4):
             return None
         
         # Get keypoint positions
-        shoulder = np.array([keypoints[shoulder_idx][0], keypoints[shoulder_idx][1]])
-        elbow = np.array([keypoints[elbow_idx][0], keypoints[elbow_idx][1]])
-        wrist = np.array([keypoints[wrist_idx][0], keypoints[wrist_idx][1]])
+        shoulder = np.array([keypoints[shoulder_idx][0], keypoints[shoulder_idx][1]], dtype=np.float32)
+        elbow = np.array([keypoints[elbow_idx][0], keypoints[elbow_idx][1]], dtype=np.float32)
+        wrist = np.array([keypoints[wrist_idx][0], keypoints[wrist_idx][1]], dtype=np.float32)
         
         # Calculate vectors
         upper_arm = elbow - shoulder
         lower_arm = wrist - elbow
         
-        # Calculate angle of upper arm relative to horizontal
-        upper_arm_angle = np.arctan2(upper_arm[1], abs(upper_arm[0])) * 180 / np.pi
+        # Check minimum arm length (avoid noise from very short segments)
+        upper_arm_length = np.linalg.norm(upper_arm)
+        lower_arm_length = np.linalg.norm(lower_arm)
         
-        # Calculate elbow angle
-        if np.linalg.norm(upper_arm) > 0 and np.linalg.norm(lower_arm) > 0:
-            upper_arm_norm = upper_arm / np.linalg.norm(upper_arm)
-            lower_arm_norm = lower_arm / np.linalg.norm(lower_arm)
+        if upper_arm_length < 20 or lower_arm_length < 15:  # Minimum pixels
+            return None
+        
+        # Calculate angle of upper arm from VERTICAL (0° = straight down, 90° = horizontal)
+        # Use atan2 with proper sign handling for left/right
+        if arm_side == 'left':
+            # For left arm, positive x means extending left (away from body)
+            angle_from_vertical = np.arctan2(abs(upper_arm[0]), abs(upper_arm[1])) * 180 / np.pi
+        else:  # right
+            # For right arm, positive x means extending right (away from body)
+            angle_from_vertical = np.arctan2(abs(upper_arm[0]), abs(upper_arm[1])) * 180 / np.pi
+        
+        # Calculate elbow angle (bend in arm)
+        if upper_arm_length > 0 and lower_arm_length > 0:
+            upper_arm_norm = upper_arm / upper_arm_length
+            lower_arm_norm = lower_arm / lower_arm_length
             dot_product = np.clip(np.dot(upper_arm_norm, lower_arm_norm), -1.0, 1.0)
             elbow_angle = np.arccos(dot_product) * 180 / np.pi
         else:
             return None
         
-        # Check if arm is raised to side (60-90 degrees from vertical)
-        horizontal_extension = abs(upper_arm[0]) > abs(upper_arm[1]) * 0.5
+        # Check if arm is extended horizontally (more horizontal than vertical)
+        horizontal_ratio = abs(upper_arm[0]) / max(abs(upper_arm[1]), 1.0)  # Avoid division by zero
         
-        if (upper_arm_angle < 30.0 and 
-            wrist[1] < shoulder[1] and  # Wrist above shoulder
-            elbow_angle > 60.0 and elbow_angle < 150.0 and
-            horizontal_extension):
-            angle_from_vertical = 90.0 - upper_arm_angle
+        # Robust detection criteria for 60-90 degree arm raise:
+        # 1. Arm angle from vertical is between 60-90 degrees (0-30 degrees from horizontal)
+        # 2. Wrist is at or above shoulder level (raised up)
+        # 3. Arm is extended horizontally (not just straight up)
+        # 4. Elbow is bent (not fully extended, not fully bent)
+        # 5. Arm is extended away from body (horizontal extension)
+        
+        angle_ok = 55.0 <= angle_from_vertical <= 95.0  # 60-90 degrees from vertical (with margin)
+        wrist_raised = wrist[1] <= shoulder[1] + 30  # Wrist at or above shoulder (with tolerance)
+        horizontal_extended = horizontal_ratio > 0.8  # More horizontal than vertical
+        elbow_bent = 45.0 <= elbow_angle <= 160.0  # Elbow is bent but not too much
+        arm_extended = abs(upper_arm[0]) > 30  # Arm extends at least 30 pixels horizontally
+        
+        # All conditions must be met
+        if (angle_ok and wrist_raised and horizontal_extended and elbow_bent and arm_extended):
             return angle_from_vertical
         
         return None
