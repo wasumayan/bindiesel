@@ -67,10 +67,10 @@ ARM_ELBOW_ANGLE_MIN = 45.0  # Minimum elbow bend angle (degrees)
 ARM_ELBOW_ANGLE_MAX = 160.0  # Maximum elbow bend angle (degrees)
 
 # Motor Speed Configuration
-FOLLOW_SPEED = 0.6  # Speed when following user (0.0-1.0)
+FOLLOW_SPEED = 1.0  # Speed when following user (0.0-1.0)
 MOTOR_SLOW = 0.3  # Slow speed for turning
 MOTOR_MEDIUM = 0.5  # Medium speed
-MOTOR_FAST = 0.8  # Fast speed
+MOTOR_FAST = 1.0  # Fast speed
 
 # Wake Word Configuration
 WAKE_WORD_MODEL_PATH = 'bin-diesel_en_raspberry-pi_v3_0_0/bin-diesel_en_raspberry-pi_v3_0_0.ppn'

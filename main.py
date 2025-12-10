@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 from state_machine import StateMachine, State
 from wake_word_detector import WakeWordDetector
-# Use YOLO pose tracker instead of basic visual detector
 from test_yolo_pose_tracking import YOLOPoseTracker
 from motor_controller import MotorController
 from servo_controller import ServoController
@@ -125,16 +124,30 @@ class BinDieselSystem:
             self.tof = None
         
         # Initialize voice recognizer (for manual mode)
-        log_info(self.logger, "Initializing voice recognizer...")
+        # NOTE: Defer initialization until needed to avoid audio device conflicts with wake word detector
+        # The wake word detector needs exclusive access to the microphone
+        log_info(self.logger, "Voice recognizer will be initialized on-demand (to avoid audio conflicts)")
+        self.voice = None
+        self._voice_initialized = False
+    
+    def _ensure_voice_initialized(self):
+        """Lazy initialization of voice recognizer to avoid audio conflicts"""
+        if self._voice_initialized:
+            return self.voice is not None
+        
+        self._voice_initialized = True
+        log_info(self.logger, "Initializing voice recognizer on-demand...")
         try:
             self.voice = VoiceRecognizer(
                 api_key=config.OPENAI_API_KEY,
                 model=config.OPENAI_MODEL
             )
             log_info(self.logger, "Voice recognizer initialized successfully")
+            return True
         except Exception as e:
             log_warning(self.logger, f"Failed to initialize voice recognizer: {e}", "Manual mode voice commands will not be available")
             self.voice = None
+            return False
         
         # Initialize hand gesture controller (for manual mode)
         # Note: We'll share the camera frame from pose tracker to avoid duplicate cameras
@@ -216,10 +229,16 @@ class BinDieselSystem:
             print("[Main] System activated!")
             if self.debug_mode:
                 print("[Main] DEBUG: Wake word detected, transitioning to ACTIVE")
+            
+            # Now that wake word is detected, initialize voice recognizer
+            # (wake word detector keeps its stream open, but voice recognizer can be initialized for commands)
+            if not self._voice_initialized:
+                self._ensure_voice_initialized()
     
     def handle_active_state(self):
         """Handle ACTIVE state - waiting for mode selection"""
-        # Check for voice commands (if voice available)
+        # Voice recognizer should already be initialized after wake word detection
+        # (initialized in handle_idle_state when wake word is detected)
         if self.voice:
             try:
                 command = self.voice.recognize_command(timeout=0.1)  # Quick check
@@ -439,7 +458,8 @@ class BinDieselSystem:
     
     def handle_manual_mode_state(self):
         """Handle MANUAL_MODE state - waiting for voice commands and hand gestures"""
-        # Check for voice command (if available)
+        # Voice recognizer should already be initialized after wake word detection
+        # (initialized in handle_idle_state when wake word is detected)
         voice_command = None
         if self.voice:
             voice_command = self.voice.recognize_command(timeout=0.1)  # Quick check

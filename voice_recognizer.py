@@ -91,21 +91,81 @@ Be flexible with variations (e.g., "go forward", "move left", "turn right", "sto
             print("[VoiceRecognizer] WARNING: OpenAI not available, using fallback mode")
         
         self.recognizer = sr.Recognizer()
-        self.microphone = sr.Microphone()
+        self.microphone = None
         
-        # Adjust for ambient noise
-        print("[VoiceRecognizer] Adjusting for ambient noise...")
-        with self.microphone as source:
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)
-        
-        # Set recognition parameters
-        self.recognizer.energy_threshold = energy_threshold
-        self.recognizer.pause_threshold = pause_threshold
-        self.recognizer.phrase_time_limit = phrase_time_limit
-        
-        print("[VoiceRecognizer] Initialized with real-time speech recognition")
-        print(f"[VoiceRecognizer] Energy threshold: {energy_threshold}")
-        print(f"[VoiceRecognizer] Pause threshold: {pause_threshold}s")
+        # Try to initialize microphone with error handling
+        try:
+            # Try to find a valid microphone device
+            microphone_list = sr.Microphone.list_microphone_names()
+            print(f"[VoiceRecognizer] Found {len(microphone_list)} audio input devices")
+            
+            # Try default microphone first
+            try:
+                self.microphone = sr.Microphone()
+                print("[VoiceRecognizer] Using default microphone")
+            except Exception as e:
+                print(f"[VoiceRecognizer] Default microphone failed: {e}")
+                # Try to find any working microphone
+                for i, mic_name in enumerate(microphone_list):
+                    try:
+                        print(f"[VoiceRecognizer] Trying microphone [{i}]: {mic_name}")
+                        self.microphone = sr.Microphone(device_index=i)
+                        print(f"[VoiceRecognizer] Successfully initialized microphone [{i}]: {mic_name}")
+                        break
+                    except Exception as e2:
+                        print(f"[VoiceRecognizer] Microphone [{i}] failed: {e2}")
+                        continue
+            
+            if self.microphone is None:
+                raise RuntimeError("No working microphone found")
+            
+            # Adjust for ambient noise (with timeout to avoid hanging)
+            print("[VoiceRecognizer] Adjusting for ambient noise...")
+            try:
+                with self.microphone as source:
+                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                print("[VoiceRecognizer] Ambient noise adjustment complete")
+            except (OSError, IOError) as e:
+                # ALSA/PortAudio errors (e.g., error 9988, ALSA errors)
+                error_str = str(e)
+                if '9988' in error_str or 'alsa' in error_str.lower() or 'pa_linux_alsa' in error_str.lower():
+                    raise RuntimeError(
+                        f"Audio device access failed (ALSA error): {e}\n"
+                        f"This usually means:\n"
+                        f"  1. Microphone permissions not granted\n"
+                        f"  2. Audio device is in use by another application\n"
+                        f"  3. No microphone available or not connected\n"
+                        f"  4. ALSA/PulseAudio configuration issues"
+                    ) from e
+                else:
+                    print(f"[VoiceRecognizer] Warning: Could not adjust for ambient noise: {e}")
+                    print("[VoiceRecognizer] Continuing with default settings...")
+            except Exception as e:
+                print(f"[VoiceRecognizer] Warning: Could not adjust for ambient noise: {e}")
+                print("[VoiceRecognizer] Continuing with default settings...")
+            
+            # Set recognition parameters
+            self.recognizer.energy_threshold = energy_threshold
+            self.recognizer.pause_threshold = pause_threshold
+            self.recognizer.phrase_time_limit = phrase_time_limit
+            
+            print("[VoiceRecognizer] Initialized with real-time speech recognition")
+            print(f"[VoiceRecognizer] Energy threshold: {energy_threshold}")
+            print(f"[VoiceRecognizer] Pause threshold: {pause_threshold}s")
+            
+        except Exception as e:
+            error_msg = (
+                f"Failed to initialize microphone: {e}\n"
+                f"This usually means:\n"
+                f"  1. No microphone available or not connected\n"
+                f"  2. Microphone permissions not granted\n"
+                f"  3. Audio device is in use by another application\n"
+                f"  4. ALSA/PulseAudio configuration issues (Linux)\n"
+                f"\n"
+                f"Voice recognition will be disabled, but the system will continue to run.\n"
+                f"You can still use hand gestures or other input methods."
+            )
+            raise RuntimeError(error_msg) from e
     
     def interpret_command_with_gpt(self, transcribed_text):
         """
@@ -173,6 +233,9 @@ Be flexible with variations (e.g., "go forward", "move left", "turn right", "sto
         Returns:
             Command string (FORWARD, LEFT, RIGHT, STOP, TURN_AROUND, AUTOMATIC_MODE, MANUAL_MODE) or None
         """
+        if self.microphone is None:
+            return None
+        
         try:
             # Listen for speech
             with self.microphone as source:
