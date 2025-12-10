@@ -83,10 +83,6 @@ EMERGENCY_STOP_ENABLED = True  # Enable TOF emergency stop
 TOF_STOP_DISTANCE_MM = 300  # Stop when within 30cm
 TOF_EMERGENCY_DISTANCE_MM = 100  # Emergency stop when within 10cm
 
-# Hand Gesture Configuration
-HAND_GESTURE_HOLD_TIME = 0.5  # Seconds gesture must be held before executing
-HAND_MODEL_PATH = None  # Path to hand keypoints model (if trained), None to use pose model
-
 # Debug Configuration
 DEBUG_MODE = True  # Enable debug logging throughout system
 DEBUG_VISUAL = True  # Debug visual detection specifically
