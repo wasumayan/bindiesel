@@ -280,6 +280,7 @@ class BinDieselSystem:
                     self.state_machine.transition_to(State.TRACKING_USER)
                     self.state_machine.set_start_position("origin")  # Store starting position
                     self.path_tracker.start_tracking()  # Start tracking path
+                    self.last_command_time = time.time()  # Initialize command time for path tracking
                     conditional_log(self.logger, 'info', 
                                   "Autonomous mode: User detected with raised arm",
                                   config.DEBUG_MODE)
@@ -312,14 +313,19 @@ class BinDieselSystem:
         if result['arm_raised']:
             # User has arm raised - start following
             self.state_machine.transition_to(State.FOLLOWING_USER)
+            # Ensure path tracking is started and command time is initialized
+            if not self.path_tracker.is_tracking:
+                self.path_tracker.start_tracking()
+            if self.last_command_time == 0:
+                self.last_command_time = time.time()
             conditional_log(self.logger, 'info',
                           "User tracking confirmed, starting to follow",
                           config.DEBUG_MODE)
     
     def handle_following_user_state(self):
         """Handle FOLLOWING_USER state - moving toward user"""
-        # Check TOF sensor for emergency stop
-        if self.tof:       
+        # Check TOF sensor for emergency stop (only if enabled)
+        if self.tof and config.EMERGENCY_STOP_ENABLED:
             if self.tof.detect():
                 print("[Main] EMERGENCY STOP: Object too close!")
                 self.motor.stop()
@@ -347,13 +353,14 @@ class BinDieselSystem:
                 self.servo.center()
             return
         
-        # Check if user is too close (TOF sensor)
-        if self.tof and self.tof.detect():
-            print("[Main] User reached (TOF sensor), stopping")
-            self.motor.stop()
-            self.servo.center()
-            self.state_machine.transition_to(State.STOPPED)
-            return
+        # Check if user is too close (TOF sensor) - only if emergency stop is enabled
+        if self.tof and config.EMERGENCY_STOP_ENABLED:
+            if self.tof.detect():
+                print("[Main] User reached (TOF sensor), stopping")
+                self.motor.stop()
+                self.servo.center()
+                self.state_machine.transition_to(State.STOPPED)
+                return
         
         # Calculate steering based on angle
         if result['angle'] is not None:
@@ -390,14 +397,22 @@ class BinDieselSystem:
                               self.debug_mode and config.DEBUG_MOTOR)
                 self.motor.forward(speed)
             
-            # Track path segment
-            segment_duration = time.time() - self.last_command_time if self.last_command_time > 0 else 0.1
-            self.path_tracker.add_segment(speed, steering_position, segment_duration)
+            # Track path segment (only if path tracking is active)
+            if self.path_tracker.is_tracking:
+                segment_duration = time.time() - self.last_command_time if self.last_command_time > 0 else 0.1
+                self.path_tracker.add_segment(speed, steering_position, segment_duration)
+                conditional_log(self.logger, 'debug',
+                              f"Path segment added: speed={speed:.2f}, steering={steering_position:.2f}, duration={segment_duration:.2f}s",
+                              self.debug_mode)
             self.last_command_time = time.time()
         else:
             # No angle data - stop
             self.motor.stop()
             self.servo.center()
+            # Still track this stop segment if tracking
+            if self.path_tracker.is_tracking and self.last_command_time > 0:
+                segment_duration = time.time() - self.last_command_time
+                self.path_tracker.add_segment(0.0, 0.0, segment_duration)  # Stop segment
             self.state_machine.transition_to(State.IDLE)
             print("[Main] No angle data - returning to IDLE")
     
