@@ -57,12 +57,12 @@ cd ~
 
 **Clone the repository:**
 ```bash
-git clone https://github.com/wasumayan/bindiesel.git angleestimationbindiesel
+git clone https://github.com/wasumayan/bindiesel.git bindiesel
 ```
 
 **Navigate into project:**
 ```bash
-cd angleestimationbindiesel
+cd bindiesel
 ```
 
 ---
@@ -191,7 +191,7 @@ nano ~/.bashrc
 **Add these lines at the end (replace with your actual project path):**
 ```bash
 # Auto-activate bindiesel venv
-cd ~/Desktop/angleestimationbindiesel  # Change to your actual project path
+cd ~/Desktop/bindiesel  # Change to your actual project path
 source venv/bin/activate
 ```
 
@@ -225,7 +225,7 @@ python main.py
 
 ### If venv not activated:
 ```bash
-cd ~/Desktop/angleestimationbindiesel  # Your project path
+cd ~/Desktop/bindiesel  # Your project path
 source venv/bin/activate
 ```
 
@@ -267,7 +267,7 @@ pip cache purge
 
 **Activate environment:**
 ```bash
-cd ~/Desktop/angleestimationbindiesel  # Your project path
+cd ~/Desktop/bindiesel  # Your project path
 source venv/bin/activate
 ```
 
