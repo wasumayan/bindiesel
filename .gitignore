@@ -35,3 +35,13 @@ runs/
 # Log files
 logs/
 *.log
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Downloaded YOLO model files (auto-downloaded, don't commit)
+*.pt
+!models/**/*.pt  # But keep trained models in models/ directory
