@@ -352,12 +352,12 @@ def main():
     logger.info("  - Better detection of objects at various angles")
     logger.info("  - Trash detection (bottles, cans, containers, etc.)")
     logger.info("  - Useful for detecting trash in hands or on floor")
-    logger.info()
+    logger.info("")
     logger.info("Controls:")
     logger.info("  - Press 'q' to quit")
     logger.info("  - Press 's' to save current frame")
     logger.info("=" * 70)
-    logger.info()
+    logger.info("")
     
     try:
         # Initialize detector
@@ -370,7 +370,7 @@ def main():
         
         logger.info("YOLO OBB detector initialized")
         logger.info("Starting camera feed...")
-        logger.info()
+        logger.info("")
         
         # Start OpenCV window
         cv2.startWindowThread()

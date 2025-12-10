@@ -345,47 +345,47 @@ class BinDieselSystem:
         
         # Calculate steering based on angle
         if result['angle'] is not None:
-                angle = result['angle']
-                
+            angle = result['angle']
+            
+            conditional_log(self.logger, 'debug',
+                          f"Person angle: {angle:.1f}°, centered: {result['is_centered']}",
+                          self.debug_mode and config.DEBUG_VISUAL)
+            
+            # Convert angle to steering position
+            # Use configurable gain to adjust sensitivity
+            steering_position = (angle / 45.0) * config.ANGLE_TO_STEERING_GAIN
+            steering_position = max(-1.0, min(1.0, steering_position))
+            
+            conditional_log(self.logger, 'debug',
+                          f"Setting servo angle: {angle:.1f}° (position: {steering_position:.2f})",
+                          self.debug_mode and config.DEBUG_SERVO)
+            
+            self.servo.set_angle(angle)
+            
+            # Adjust speed based on how centered user is
+            if result['is_centered']:
+                # User is centered - move forward
+                speed = config.FOLLOW_SPEED
                 conditional_log(self.logger, 'debug',
-                              f"Person angle: {angle:.1f}°, centered: {result['is_centered']}",
-                              self.debug_mode and config.DEBUG_VISUAL)
-                
-                # Convert angle to steering position
-                # Use configurable gain to adjust sensitivity
-                steering_position = (angle / 45.0) * config.ANGLE_TO_STEERING_GAIN
-                steering_position = max(-1.0, min(1.0, steering_position))
-                
-                conditional_log(self.logger, 'debug',
-                              f"Setting servo angle: {angle:.1f}° (position: {steering_position:.2f})",
-                              self.debug_mode and config.DEBUG_SERVO)
-                
-                self.servo.set_angle(angle)
-                
-                # Adjust speed based on how centered user is
-                if result['is_centered']:
-                    # User is centered - move forward
-                    speed = config.FOLLOW_SPEED
-                    conditional_log(self.logger, 'debug',
-                                  f"User centered, moving forward at {speed*100:.0f}%",
-                                  self.debug_mode and config.DEBUG_MOTOR)
-                    self.motor.forward(speed)
-                else:
-                    # User not centered - slow down while turning
-                    speed = config.FOLLOW_SPEED * 0.7
-                    conditional_log(self.logger, 'debug',
-                                  f"User not centered, moving forward at {speed*100:.0f}% while turning",
-                                  self.debug_mode and config.DEBUG_MOTOR)
-                    self.motor.forward(speed)
-                
-                # Track path segment
-                segment_duration = time.time() - self.last_command_time if self.last_command_time > 0 else 0.1
-                self.path_tracker.add_segment(speed, steering_position, segment_duration)
-                self.last_command_time = time.time()
+                              f"User centered, moving forward at {speed*100:.0f}%",
+                              self.debug_mode and config.DEBUG_MOTOR)
+                self.motor.forward(speed)
             else:
-                # No angle data - stop
-                self.motor.stop()
-                self.servo.center()
+                # User not centered - slow down while turning
+                speed = config.FOLLOW_SPEED * 0.7
+                conditional_log(self.logger, 'debug',
+                              f"User not centered, moving forward at {speed*100:.0f}% while turning",
+                              self.debug_mode and config.DEBUG_MOTOR)
+                self.motor.forward(speed)
+            
+            # Track path segment
+            segment_duration = time.time() - self.last_command_time if self.last_command_time > 0 else 0.1
+            self.path_tracker.add_segment(speed, steering_position, segment_duration)
+            self.last_command_time = time.time()
+        else:
+            # No angle data - stop
+            self.motor.stop()
+            self.servo.center()
     
     def handle_stopped_state(self):
         """Handle STOPPED state - at target distance, waiting"""

@@ -131,7 +131,7 @@ class RADDDetector:
                 continue
             
             # Detect violation for this person
-            violation_result = self.detect_violation(
+            violation_result, yolo_result = self.detect_violation(
                 frame, 
                 person_box=person_box, 
                 keypoints=keypoints
@@ -143,6 +143,7 @@ class RADDDetector:
                     'track_id': track_id,
                     'person_box': person_box,
                     'violation_result': violation_result,
+                    'yolo_result': yolo_result,  # Store YOLO result for overlay
                     'first_detected': self.tracked_violators.get(track_id, {}).get('first_detected', current_time),
                     'last_seen': current_time,
                     'no_full_pants': violation_result['no_full_pants'],
@@ -190,14 +191,9 @@ class RADDDetector:
             keypoints: Optional YOLO pose keypoints (for fallback heuristics)
             
         Returns:
-            dict with:
-            {
-                'violation_detected': bool,
-                'no_full_pants': bool,
-                'no_closed_toe_shoes': bool,
-                'confidence': float (0.0-1.0),
-                'details': dict with detection details
-            }
+            tuple: (violation_dict, yolo_result_object)
+            - violation_dict: dict with violation detection results
+            - yolo_result_object: YOLO result object (None if using heuristics, for overlay)
         """
         # Use clothing detection model if available
         if not self.use_heuristics and self.model is not None:
@@ -205,14 +201,14 @@ class RADDDetector:
         else:
             # Fallback to heuristics if model not available
             if keypoints is None:
-                return {
+                return ({
                     'violation_detected': False,
                     'no_full_pants': False,
                     'no_closed_toe_shoes': False,
                     'confidence': 0.0,
                     'details': {'error': 'No keypoints available for heuristics'}
-                }
-            return self._detect_violation_with_heuristics(keypoints, person_box)
+                }, None)
+            return (self._detect_violation_with_heuristics(keypoints, person_box), None)
     
     def get_tracked_violator(self, track_id):
         """
@@ -235,6 +231,72 @@ class RADDDetector:
         """
         return self.tracked_violators.copy()
     
+    def draw_overlay(self, frame, tracked_violators=None):
+        """
+        Draw RADD detection overlay on frame using YOLO's default plot + custom RADD info
+        
+        Args:
+            frame: RGB frame
+            tracked_violators: Optional dict of tracked violators (uses internal if None)
+            
+        Returns:
+            Annotated frame in BGR format with YOLO overlay + RADD violation info
+        """
+        import cv2
+        
+        if tracked_violators is None:
+            tracked_violators = self.tracked_violators
+        
+        # Start with original frame (will be converted to BGR)
+        annotated_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        
+        # If we have YOLO results from clothing detection, use YOLO's default overlay
+        # Find the most recent violator with YOLO result
+        yolo_result = None
+        for violator_info in tracked_violators.values():
+            if violator_info.get('yolo_result') is not None:
+                yolo_result = violator_info['yolo_result']
+                break
+        
+        # Use YOLO's built-in plot() method for default overlays (bounding boxes, labels, etc.)
+        if yolo_result is not None:
+            # YOLO's plot() returns BGR frame with all default visualizations
+            annotated_frame = yolo_result.plot()
+        
+        # Add custom RADD violation information on top
+        y_offset = 30
+        font_scale = 0.6
+        thickness = 2
+        
+        # Show RADD mode status
+        if tracked_violators:
+            num_violators = len(tracked_violators)
+            text = f"RADD MODE: {num_violators} violator(s) detected"
+            cv2.putText(annotated_frame, text, (10, y_offset),
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 255), thickness)  # Red text
+            y_offset += 30
+            
+            # Show violation details for each violator
+            for track_id, violator_info in list(tracked_violators.items())[:3]:  # Show max 3
+                violation_details = []
+                if violator_info['no_full_pants']:
+                    violation_details.append("NO PANTS")
+                if violator_info['no_closed_toe_shoes']:
+                    violation_details.append("NO SHOES")
+                
+                if violation_details:
+                    violation_text = " + ".join(violation_details)
+                    text = f"Person {track_id}: {violation_text} (conf: {violator_info['confidence']:.2f})"
+                    cv2.putText(annotated_frame, text, (10, y_offset),
+                               cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 0, 255), 1)  # Red text
+                    y_offset += 25
+        else:
+            text = "RADD MODE: No violations detected"
+            cv2.putText(annotated_frame, text, (10, y_offset),
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)  # Green text
+        
+        return annotated_frame
+    
     def _detect_violation_with_model(self, frame, person_box):
         """
         Detect violations using YOLO clothing detection model
@@ -244,7 +306,9 @@ class RADDDetector:
             person_box: Optional bounding box to extract person region
             
         Returns:
-            dict with violation detection results
+            tuple: (violation_results_dict, yolo_result_object)
+            - violation_results_dict: dict with violation detection results
+            - yolo_result_object: YOLO result object (for default overlay)
         """
         # Extract person region if box provided
         if person_box:
@@ -272,22 +336,22 @@ class RADDDetector:
             )
         except Exception as e:
             self.logger.error(f"Clothing detection error: {e}")
-            return {
+            return ({
                 'violation_detected': False,
                 'no_full_pants': False,
                 'no_closed_toe_shoes': False,
                 'confidence': 0.0,
                 'details': {'error': f'Detection failed: {e}'}
-            }
+            }, None)
         
         if not results or len(results) == 0:
-            return {
+            return ({
                 'violation_detected': False,
                 'no_full_pants': False,
                 'no_closed_toe_shoes': False,
                 'confidence': 0.0,
                 'details': {'detections': 0}
-            }
+            }, None)
         
         result = results[0]
         detections = {
@@ -384,13 +448,16 @@ class RADDDetector:
             self.logger.debug(f"RADD violation (model): pants={no_full_pants}, shoes={no_closed_toe_shoes}, "
                             f"conf={overall_confidence:.2f}, clothing={clothing_detected}, shoes={shoes_detected}")
         
-        return {
+        violation_result = {
             'violation_detected': violation_detected,
             'no_full_pants': no_full_pants,
             'no_closed_toe_shoes': no_closed_toe_shoes,
             'confidence': overall_confidence,
             'details': details
         }
+        
+        # Return both violation results and YOLO result object for overlay
+        return (violation_result, result)
     
     def _detect_violation_with_heuristics(self, keypoints, person_box):
         """
