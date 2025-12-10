@@ -39,6 +39,7 @@ CAMERA_ROTATION = 180  # Rotate camera 180 degrees (0, 90, 180, 270) - set to 18
 CAMERA_FLIP_HORIZONTAL = False  # Flip horizontally (mirror)
 CAMERA_FLIP_VERTICAL = False  # Flip vertically
 CAMERA_SWAP_RB = True  # Swap red and blue channels (fixes color swap issue)
+CAMERA_SWAP_LEFT_RIGHT = True  # Swap left/right arm detection (needed when camera is rotated 180°)
 YOLO_MODEL = 'yolo11n.pt'  # YOLO nano model for speed (object detection)
 YOLO_POSE_MODEL = 'yolo11n-pose.pt'  # YOLO pose model (for pose estimation + tracking)
 YOLO_CONFIDENCE = 0.25

@@ -258,8 +258,14 @@ class YOLOPoseTracker:
                     # Process person pose if available
                     if class_name == 'person' and keypoints is not None:
                         # Calculate arm angles (60-90 degrees raised to side)
-                        left_arm_angle = self.calculate_arm_angle(keypoints, 'left')
-                        right_arm_angle = self.calculate_arm_angle(keypoints, 'right')
+                        # Swap left/right if camera is rotated (config.CAMERA_SWAP_LEFT_RIGHT)
+                        if config.CAMERA_SWAP_LEFT_RIGHT:
+                            # When camera is rotated 180°, swap left/right detection
+                            left_arm_angle = self.calculate_arm_angle(keypoints, 'right')  # Swapped
+                            right_arm_angle = self.calculate_arm_angle(keypoints, 'left')  # Swapped
+                        else:
+                            left_arm_angle = self.calculate_arm_angle(keypoints, 'left')
+                            right_arm_angle = self.calculate_arm_angle(keypoints, 'right')
                         
                         # Note: Hand gestures are handled separately in hand_gesture_controller.py
                         # This pose tracker only detects arm angles for autonomous following
@@ -373,34 +379,35 @@ def draw_detections(frame, yolo_result, results):
         Annotated frame in BGR format
     """
     # Use YOLO's built-in plot() method for default overlays
-    # This gives us the standard YOLO visualization with keypoints, skeleton, etc.
-    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    annotated_frame = yolo_result.plot()  # YOLO's default overlay
+    # This gives us the standard YOLO visualization with keypoints, skeleton, bounding boxes, etc.
+    # YOLO's plot() already handles all the default visualizations
+    annotated_frame = yolo_result.plot()  # YOLO's default overlay (returns BGR)
     
-    # Add custom arm angle information on top
+    # Add custom arm angle information on top of YOLO's default overlay
     y_offset = 30
-    font_scale = 0.5
+    font_scale = 0.6
     thickness = 2
     
     for pose in results['poses']:
+        # Show which arm is raised with angle
         if pose['left_arm_raised']:
-            text = f"L Arm: {pose['left_arm_angle']:.0f}°"
+            text = f"LEFT Arm Raised: {pose['left_arm_angle']:.0f}°"
             cv2.putText(annotated_frame, text, (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
-            y_offset += 25
+            y_offset += 30
         
         if pose['right_arm_raised']:
-            text = f"R Arm: {pose['right_arm_angle']:.0f}°"
+            text = f"RIGHT Arm Raised: {pose['right_arm_angle']:.0f}°"
             cv2.putText(annotated_frame, text, (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
-            y_offset += 25
+            y_offset += 30
     
-    # Draw FPS
+    # Draw FPS in top right
     fps_text = f'FPS: {results["fps"]:.1f}'
     cv2.putText(annotated_frame, fps_text, (annotated_frame.shape[1] - 150, 30),
                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     
-    # Draw tracking info
+    # Draw tracking info at bottom
     if results['tracked_persons']:
         track_text = f"Tracking: {len(results['tracked_persons'])} person(s)"
         cv2.putText(annotated_frame, track_text, (10, annotated_frame.shape[0] - 20),
