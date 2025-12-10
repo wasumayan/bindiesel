@@ -41,21 +41,32 @@ def train_hand_keypoints_model(output_dir="models", use_gpu=True):
     # Load pretrained YOLO11n-pose model
     model = YOLO("yolo11n-pose.pt")
     
-    # Determine device
+    # Determine device (prioritize: CUDA > MPS > CPU)
     if use_gpu:
         try:
             import torch
-            device = 0 if torch.cuda.is_available() else 'cpu'
-            if device == 'cpu':
-                print("WARNING: GPU not available, using CPU (will be MUCH slower)")
+            # Check for CUDA (NVIDIA GPU) first
+            if torch.cuda.is_available():
+                device = 0  # CUDA device
+                device_name = f"CUDA ({torch.cuda.get_device_name(0)})"
+            # Check for MPS (Apple Silicon) second
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                device = 'mps'  # Apple Silicon GPU
+                device_name = "MPS (Apple Silicon)"
+            else:
+                device = 'cpu'
+                device_name = "CPU"
+                print("WARNING: No GPU available, using CPU (will be MUCH slower)")
                 print("         Consider reducing epochs or using a pre-trained model")
         except:
             device = 'cpu'
+            device_name = "CPU"
             print("WARNING: PyTorch not available, using CPU")
     else:
         device = 'cpu'
+        device_name = "CPU"
     
-    print(f"Using device: {device}")
+    print(f"Using device: {device_name} ({device})")
     
     # Optimize training parameters based on device
     if device == 'cpu':
@@ -73,9 +84,26 @@ def train_hand_keypoints_model(output_dir="models", use_gpu=True):
         print("   2. Stop and use pre-trained model if available")
         print("   3. Train on a machine with GPU")
         print()
+    elif device == 'mps':
+        # Apple Silicon MPS - faster than CPU, but may need smaller batch
+        recommended_epochs = 100  # Full training on MPS
+        batch_size = 16  # Can try larger batches on MPS
+        print()
+        print("✅ Apple Silicon MPS detected - Using GPU acceleration!")
+        print(f"   Epochs: {recommended_epochs}")
+        print(f"   Batch size: {batch_size}")
+        print(f"   Estimated time: ~2-4 hours (much faster than CPU!)")
+        print()
     else:
+        # CUDA GPU
         recommended_epochs = 100  # Full training on GPU
         batch_size = 16
+        print()
+        print(f"✅ CUDA GPU detected - Using GPU acceleration!")
+        print(f"   Epochs: {recommended_epochs}")
+        print(f"   Batch size: {batch_size}")
+        print(f"   Estimated time: ~2-4 hours")
+        print()
     
     print()
     
@@ -92,7 +120,7 @@ def train_hand_keypoints_model(output_dir="models", use_gpu=True):
         patience=10,  # Early stopping if no improvement
         workers=4 if device == 'cpu' else 8,  # Fewer workers on CPU
         cache=False,  # Don't cache images on CPU (saves memory)
-        amp=device != 'cpu'  # Mixed precision only on GPU
+        amp=(device != 'cpu' and device != 'mps')  # Mixed precision on CUDA only (MPS has issues with AMP)
     )
     
     # Copy best model to models/ directory for git
