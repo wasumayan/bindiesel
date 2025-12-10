@@ -21,10 +21,9 @@ from test_yolo_pose_tracking import YOLOPoseTracker
 from motor_controller import MotorController
 from servo_controller import ServoController
 from tof_sensor import ToFSensor
-from voice_recognizer import VoiceRecognizer
-from path_tracker import PathTracker
-from hand_gesture_controller import HandGestureController, get_gesture_command
-from radd_detector import RADDDetector
+# from voice_recognizer import VoiceRecognizer  # COMMENTED OUT - no voice commands
+# from hand_gesture_controller import HandGestureController, get_gesture_command
+# from radd_detector import RADDDetector
 from logger import setup_logger, log_error, log_warning, log_info, log_debug
 from optimizations import FrameCache, PerformanceMonitor, conditional_log, skip_frames
 
@@ -50,8 +49,6 @@ class BinDieselSystem:
             tracking_timeout=config.TRACKING_TIMEOUT
         )
         
-        # Initialize path tracker
-        self.path_tracker = PathTracker()
         
         # Initialize wake word detector
         log_info(self.logger, "Initializing wake word detector...")
@@ -147,31 +144,31 @@ class BinDieselSystem:
             log_warning(self.logger, f"Failed to initialize TOF sensor: {e}", "Continuing without TOF sensor (safety feature disabled)")
             self.tof = None
         
-        # Initialize voice recognizer (for manual mode)
+        # Initialize voice recognizer - COMMENTED OUT (no voice commands)
         # NOTE: Defer initialization until needed to avoid audio device conflicts with wake word detector
         # The wake word detector needs exclusive access to the microphone
-        log_info(self.logger, "Voice recognizer will be initialized on-demand (to avoid audio conflicts)")
-        self.voice = None
-        self._voice_initialized = False
+        # log_info(self.logger, "Voice recognizer will be initialized on-demand (to avoid audio conflicts)")
+        # self.voice = None
+        # self._voice_initialized = False
         
-        # Initialize hand gesture controller (for manual mode)
+        # Initialize hand gesture controller (for manual mode) - COMMENTED OUT
         # NOTE: Defer initialization until manual mode is activated to avoid unnecessary initialization
         # The gesture controller will use frames from YOLOPoseTracker (shared camera)
-        log_info(self.logger, "Hand gesture controller will be initialized on-demand (when entering manual mode)")
-        self.gesture_controller = None
-        self._gesture_controller_initialized = False
+        # log_info(self.logger, "Hand gesture controller will be initialized on-demand (when entering manual mode)")
+        # self.gesture_controller = None
+        # self._gesture_controller_initialized = False
         
-        # Initialize RADD detector (for RADD mode)
-        log_info(self.logger, "Initializing RADD detector...")
-        try:
-            self.radd_detector = RADDDetector(
-                model_path=config.YOLO_CLOTHING_MODEL,
-                confidence=config.YOLO_CONFIDENCE
-            )
-            log_info(self.logger, "RADD detector initialized successfully")
-        except Exception as e:
-            log_warning(self.logger, f"Failed to initialize RADD detector: {e}", "RADD mode will not be available")
-            self.radd_detector = None
+        # Initialize RADD detector (for RADD mode) - COMMENTED OUT
+        # log_info(self.logger, "Initializing RADD detector...")
+        # try:
+        #     self.radd_detector = RADDDetector(
+        #         model_path=config.YOLO_CLOTHING_MODEL,
+        #         confidence=config.YOLO_CONFIDENCE
+        #     )
+        #     log_info(self.logger, "RADD detector initialized successfully")
+        # except Exception as e:
+        #     log_warning(self.logger, f"Failed to initialize RADD detector: {e}", "RADD mode will not be available")
+        #     self.radd_detector = None
         
         # Control flags (running already set at start of __init__)
         self.last_visual_update = 0
@@ -185,9 +182,8 @@ class BinDieselSystem:
         self.cached_visual_timestamp = 0
         self.frame_skip_counter = 0  # Counter for frame skipping
         
-        # Manual mode state
-        self.current_manual_command = None  # Current active manual command
-        self.last_command_time = 0  # Time of last command execution
+        # Manual mode state - COMMENTED OUT
+        # self.current_manual_command = None  # Current active manual command
         
         # Debug mode
         self.debug_mode = config.DEBUG_MODE
@@ -201,60 +197,60 @@ class BinDieselSystem:
         log_info(self.logger, "=" * 70)
         log_info(self.logger, "System Ready!")
         log_info(self.logger, "=" * 70)
-        log_info(self.logger, "Waiting for wake word: 'bin diesel'")
-        log_info(self.logger, "Available modes: autonomous, manual, radd")
+        log_info(self.logger, "State: IDLE - Waiting for wake word: 'bin diesel'")
+        log_info(self.logger, "After wake word: ACTIVE state will look for user with arm raised")
         log_info(self.logger, "Press Ctrl+C to exit")
         log_info(self.logger, "=" * 70)
     
-    def _ensure_voice_initialized(self):
-        """Lazy initialization of voice recognizer to avoid audio conflicts"""
-        if self._voice_initialized:
-            return self.voice is not None
-        
-        self._voice_initialized = True
-        log_info(self.logger, "Initializing voice recognizer on-demand...")
-        try:
-            # Get the same microphone device index as wake word detector
-            device_index = None
-            if hasattr(self, 'wake_word') and hasattr(self.wake_word, 'input_device_index'):
-                device_index = self.wake_word.input_device_index
-                log_info(self.logger, f"Using same microphone device as wake word detector (index {device_index})")
-            
-            self.voice = VoiceRecognizer(
-                api_key=config.OPENAI_API_KEY,
-                model=config.OPENAI_MODEL,
-                device_index=device_index  # Use same device as wake word detector
-            )
-            log_info(self.logger, "Voice recognizer initialized successfully")
-            return True
-        except Exception as e:
-            log_warning(self.logger, f"Failed to initialize voice recognizer: {e}", "Manual mode voice commands will not be available")
-            self.voice = None
-            return False
+    # def _ensure_voice_initialized(self):
+    #     """Lazy initialization of voice recognizer to avoid audio conflicts - COMMENTED OUT"""
+    #     if self._voice_initialized:
+    #         return self.voice is not None
+    #     
+    #     self._voice_initialized = True
+    #     log_info(self.logger, "Initializing voice recognizer on-demand...")
+    #     try:
+    #         # Get the same microphone device index as wake word detector
+    #         device_index = None
+    #         if hasattr(self, 'wake_word') and hasattr(self.wake_word, 'input_device_index'):
+    #             device_index = self.wake_word.input_device_index
+    #             log_info(self.logger, f"Using same microphone device as wake word detector (index {device_index})")
+    #         
+    #         self.voice = VoiceRecognizer(
+    #             api_key=config.OPENAI_API_KEY,
+    #             model=config.OPENAI_MODEL,
+    #             device_index=device_index  # Use same device as wake word detector
+    #         )
+    #         log_info(self.logger, "Voice recognizer initialized successfully")
+    #         return True
+    #     except Exception as e:
+    #         log_warning(self.logger, f"Failed to initialize voice recognizer: {e}", "Manual mode voice commands will not be available")
+    #         self.voice = None
+    #         return False
     
-    def _ensure_gesture_controller_initialized(self):
-        """Lazy initialization of hand gesture controller (only when entering manual mode)"""
-        if self._gesture_controller_initialized:
-            return self.gesture_controller is not None
-        
-        self._gesture_controller_initialized = True
-        log_info(self.logger, "Initializing hand gesture controller on-demand...")
-        try:
-            self.gesture_controller = HandGestureController(
-                hand_model_path=config.YOLO_HAND_MODEL,  # Use trained hand-keypoints model if available
-                pose_model_path=config.YOLO_POSE_MODEL,  # Fallback to pose model
-                width=config.CAMERA_WIDTH,
-                height=config.CAMERA_HEIGHT,
-                confidence=config.YOLO_CONFIDENCE,
-                gesture_hold_time=config.HAND_GESTURE_HOLD_TIME,
-                skip_camera=True  # Skip camera initialization - we'll use YOLOPoseTracker's camera
-            )
-            log_info(self.logger, "Hand gesture controller initialized successfully (using shared camera frame)")
-            return True
-        except Exception as e:
-            log_warning(self.logger, f"Failed to initialize hand gesture controller: {e}", "Manual mode hand gestures will not be available")
-            self.gesture_controller = None
-            return False
+    # def _ensure_gesture_controller_initialized(self):
+    #     """Lazy initialization of hand gesture controller (only when entering manual mode) - COMMENTED OUT"""
+    #     if self._gesture_controller_initialized:
+    #         return self.gesture_controller is not None
+    #     
+    #     self._gesture_controller_initialized = True
+    #     log_info(self.logger, "Initializing hand gesture controller on-demand...")
+    #     try:
+    #         self.gesture_controller = HandGestureController(
+    #             hand_model_path=config.YOLO_HAND_MODEL,  # Use trained hand-keypoints model if available
+    #             pose_model_path=config.YOLO_POSE_MODEL,  # Fallback to pose model
+    #             width=config.CAMERA_WIDTH,
+    #             height=config.CAMERA_HEIGHT,
+    #             confidence=config.YOLO_CONFIDENCE,
+    #             gesture_hold_time=config.HAND_GESTURE_HOLD_TIME,
+    #             skip_camera=True  # Skip camera initialization - we'll use YOLOPoseTracker's camera
+    #         )
+    #         log_info(self.logger, "Hand gesture controller initialized successfully (using shared camera frame)")
+    #         return True
+    #     except Exception as e:
+    #         log_warning(self.logger, f"Failed to initialize hand gesture controller: {e}", "Manual mode hand gestures will not be available")
+    #         self.gesture_controller = None
+    #         return False
     
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
@@ -262,101 +258,117 @@ class BinDieselSystem:
         self.running = False
     
     def handle_idle_state(self):
-        """Handle IDLE state - waiting for wake word"""
-        # Restart wake word detector if it was stopped (e.g., returning from other states)
+        """Handle IDLE state - wake word only, no voice recognizer (exclusive mic access)"""
+        # Clean up voice recognizer - COMMENTED OUT (no voice commands)
+        # if self._voice_initialized and self.voice:
+        #     try:
+        #         self.voice.cleanup()
+        #         log_info(self.logger, "Voice recognizer cleaned up for IDLE state")
+        #     except Exception as e:
+        #         log_warning(self.logger, f"Error cleaning up voice recognizer: {e}", "IDLE state")
+        #     self.voice = None
+        #     self._voice_initialized = False
+        
+        # Ensure wake word detector is running (exclusive mic access)
         if hasattr(self, '_wake_word_stopped') and self._wake_word_stopped:
             try:
                 self.wake_word.start_listening()
                 self._wake_word_stopped = False
-                log_info(self.logger, "Wake word detector restarted")
+                log_info(self.logger, "Wake word detector started in IDLE state")
             except Exception as e:
-                log_warning(self.logger, f"Failed to restart wake word detector: {e}", "IDLE state")
+                log_warning(self.logger, f"Failed to start wake word detector: {e}", "IDLE state")
+                # Don't spam errors - wait a bit before retrying
+                return
         
+        # Check for wake word - when detected, transition to ACTIVE
         if self.wake_word.detect():
-            self.sm.transition_to(State.ACTIVE)
-            print("[Main] System activated!")
+            print("[Main] Wake word detected!")
             if self.debug_mode:
                 print("[Main] DEBUG: Wake word detected, transitioning to ACTIVE")
             
-            # Stop wake word detector - no longer needed once in automatic mode
+            # Stop wake word detector - no longer needed after wake word detected
             try:
                 self.wake_word.stop()
                 self._wake_word_stopped = True
-                log_info(self.logger, "Wake word detector stopped (entering automatic mode)")
+                log_info(self.logger, "Wake word detector stopped (wake word detected)")
             except Exception as e:
                 log_warning(self.logger, f"Error stopping wake word detector: {e}", "State transition")
             
-            # Now that wake word is detected, initialize voice recognizer
-            if not self._voice_initialized:
-                self._ensure_voice_initialized()
+            # Transition to ACTIVE state for post-wake-word functionality
+            self.sm.transition_to(State.ACTIVE)
     
     def handle_active_state(self):
-        """Handle ACTIVE state - waiting for mode selection"""
-        # Get time since entering ACTIVE state
-        time_in_active = self.sm.get_time_in_state()
-        VOICE_LISTENING_TIMEOUT = 5.0  # Listen for voice commands for 5 seconds
+        """Handle ACTIVE state - post-wake-word: look for user hitting the pose (arm raised)"""
+        # Voice commands - COMMENTED OUT
+        # Initialize voice recognizer if not already initialized (now that wake word is done)
+        # if not self._voice_initialized:
+        #     self._ensure_voice_initialized()
         
-        # For first 5 seconds: only check voice commands
-        if time_in_active < VOICE_LISTENING_TIMEOUT:
-            if self.voice:
-                try:
-                    # Listen for voice commands with remaining time
-                    remaining_time = VOICE_LISTENING_TIMEOUT - time_in_active
-                    # Use a reasonable timeout (at least 0.5s, but not more than remaining time)
-                    listen_timeout = max(0.5, min(remaining_time, 2.0))
-                    
-                    command = self.voice.recognize_command(timeout=listen_timeout)
-                    if command:
-                        command_upper = command.upper()
-                        if command_upper == 'MANUAL_MODE':
-                            log_info(self.logger, "Manual mode activated via voice")
-                            # Initialize gesture controller when entering manual mode
-                            if not self._gesture_controller_initialized:
-                                self._ensure_gesture_controller_initialized()
-                            self.sm.transition_to(State.MANUAL_MODE)
-                            self.current_manual_command = None
-                            return
-                        elif command_upper == 'RADD_MODE':
-                            log_info(self.logger, "RADD mode activated via voice")
-                            self.sm.transition_to(State.RADD_MODE)
-                            self.sm.set_start_position("origin")
-                            self.path_tracker.start_tracking()
-                            return
-                except Exception as e:
-                    # Don't log timeout errors - they're expected when no speech
-                    if 'timeout' not in str(e).lower() and 'WaitTimeoutError' not in str(type(e).__name__):
-                        log_error(self.logger, e, "Error in voice recognition")
-        else:
-            # After 5 seconds: check visual detection for autonomous mode
-            current_time = time.time()
-            if current_time - self.last_visual_update > self.visual_update_interval:
-                try:
-                    # Use cached result if available and fresh (< 100ms old)
-                    if (self.cached_visual_result and 
-                        (current_time - self.cached_visual_timestamp) < 0.1):
-                        result = self.cached_visual_result
-                    else:
-                        result = self.visual.update()
-                        self.cached_visual_result = result
-                        self.cached_visual_timestamp = current_time
-                    
-                    self.last_visual_update = current_time
-                    
-                    if result['person_detected'] and result['arm_raised']:
-                        # User raised arm - enter autonomous mode
-                        log_info(self.logger, f"Person detected with arm raised! Track ID: {result.get('track_id', 'N/A')}, "
-                                             f"Angle: {result.get('angle', 'N/A'):.1f}°")
-                        self.sm.transition_to(State.TRACKING_USER)
-                        self.sm.set_start_position("origin")  # Store starting position
-                        self.path_tracker.start_tracking()  # Start tracking path
-                        return  # Exit early - autonomous mode activated
-                    elif result['person_detected']:
-                        # Person detected but no arm raised - log for debugging
-                        conditional_log(self.logger, 'debug', 
-                                      f"Person detected (no arm raised). Track ID: {result.get('track_id', 'N/A')}",
-                                      self.debug_mode)
-                except Exception as e:
-                    log_error(self.logger, e, "Error in visual detection update")
+        # Get time since entering ACTIVE state
+        # time_in_active = self.sm.get_time_in_state()
+        # VOICE_LISTENING_TIMEOUT = 5.0  # Listen for voice commands for 5 seconds
+        
+        # For first 5 seconds: only check voice commands - COMMENTED OUT
+        # if time_in_active < VOICE_LISTENING_TIMEOUT:
+        #     if self.voice:
+        #         try:
+        #             # Listen for voice commands with remaining time
+        #             remaining_time = VOICE_LISTENING_TIMEOUT - time_in_active
+        #             # Use a reasonable timeout (at least 0.5s, but not more than remaining time)
+        #             listen_timeout = max(0.5, min(remaining_time, 2.0))
+        #             
+        #             command = self.voice.recognize_command(timeout=listen_timeout)
+        #             if command:
+        #                 command_upper = command.upper()
+        #                 # MANUAL_MODE and RADD_MODE commands - COMMENTED OUT
+        #                 # if command_upper == 'MANUAL_MODE':
+        #                 #     log_info(self.logger, "Manual mode activated via voice")
+        #                 #     # Initialize gesture controller when entering manual mode
+        #                 #     if not self._gesture_controller_initialized:
+        #                 #         self._ensure_gesture_controller_initialized()
+        #                 #     self.sm.transition_to(State.MANUAL_MODE)
+        #                 #     self.current_manual_command = None
+        #                 #     return
+        #                 # elif command_upper == 'RADD_MODE':
+        #                 #     log_info(self.logger, "RADD mode activated via voice")
+        #                 #     self.sm.transition_to(State.RADD_MODE)
+        #                 #     return
+        #         except Exception as e:
+        #             # Don't log timeout errors - they're expected when no speech
+        #             if 'timeout' not in str(e).lower() and 'WaitTimeoutError' not in str(type(e).__name__):
+        #                 log_error(self.logger, e, "Error in voice recognition")
+        # else:
+        #     # After 5 seconds: check visual detection for autonomous mode
+        
+        # Check visual detection for user with arm raised
+        current_time = time.time()
+        if current_time - self.last_visual_update > self.visual_update_interval:
+            try:
+                # Use cached result if available and fresh (< 100ms old)
+                if (self.cached_visual_result and 
+                    (current_time - self.cached_visual_timestamp) < 0.1):
+                    result = self.cached_visual_result
+                else:
+                    result = self.visual.update()
+                    self.cached_visual_result = result
+                    self.cached_visual_timestamp = current_time
+                
+                self.last_visual_update = current_time
+                
+                if result['person_detected'] and result['arm_raised']:
+                    # User raised arm - enter autonomous mode
+                    log_info(self.logger, f"Person detected with arm raised! Track ID: {result.get('track_id', 'N/A')}, "
+                                         f"Angle: {result.get('angle', 'N/A'):.1f}°")
+                    self.sm.transition_to(State.TRACKING_USER)
+                    return  # Exit early - autonomous mode activated
+                elif result['person_detected']:
+                    # Person detected but no arm raised - log for debugging
+                    conditional_log(self.logger, 'debug', 
+                                  f"Person detected (no arm raised). Track ID: {result.get('track_id', 'N/A')}",
+                                  self.debug_mode)
+            except Exception as e:
+                log_error(self.logger, e, "Error in visual detection update")
+    
     
     def handle_tracking_user_state(self):
         """Handle TRACKING_USER state - detecting and tracking user"""
@@ -399,11 +411,6 @@ class BinDieselSystem:
             log_info(self.logger, f"Arm raised detected! Track ID: {result.get('track_id', 'N/A')}, "
                                  f"Angle: {result.get('angle', 'N/A'):.1f}°")
             self.sm.transition_to(State.FOLLOWING_USER)
-            # Ensure path tracking is started and command time is initialized
-            if not self.path_tracker.is_tracking:
-                self.path_tracker.start_tracking()
-            if self.last_command_time == 0:
-                self.last_command_time = time.time()
             conditional_log(self.logger, 'info',
                           "User tracking confirmed, starting to follow",
                           config.DEBUG_MODE)
@@ -497,35 +504,20 @@ class BinDieselSystem:
                               self.debug_mode and config.DEBUG_MOTOR)
                 self.motor.forward(speed)
                 
-            # Track path segment (only if path tracking is active)
-            if self.path_tracker.is_tracking:
-                segment_duration = time.time() - self.last_command_time if self.last_command_time > 0 else 0.1
-                self.path_tracker.add_segment(speed, steering_position, segment_duration)
-                conditional_log(self.logger, 'debug',
-                              f"Path segment added: speed={speed:.2f}, steering={steering_position:.2f}, duration={segment_duration:.2f}s",
-                              self.debug_mode)
-                self.last_command_time = time.time()
-            else:
-                # No angle data - stop
-                self.motor.stop()
-                self.servo.center()
-            # Still track this stop segment if tracking
-            if self.path_tracker.is_tracking and self.last_command_time > 0:
-                segment_duration = time.time() - self.last_command_time
-                self.path_tracker.add_segment(0.0, 0.0, segment_duration)  # Stop segment
+        else:
+            # No angle data - stop
+            self.motor.stop()
+            self.servo.center()
             self.sm.transition_to(State.IDLE)
-            print("[Main] No angle data - returning to IDLE")
+            log_info(self.logger, "No angle data - returning to IDLE state")
     
     def handle_stopped_state(self):
-        """Handle STOPPED state - at target distance, waiting"""
-        # Wait for user to place trash
-        # For now, we'll wait a fixed time, then return to start
-        # In a real system, you might wait for a signal or button press
-        
+        """Handle STOPPED state - at target distance, waiting for trash collection"""
+        # Wait for fixed amount of time for trash placement, then go to HOME
         wait_time = 10.0  # Wait 10 seconds for trash placement
         if self.sm.get_time_in_state() > wait_time:
-            print("[Main] Trash collection complete, returning to start")
-            self.sm.transition_to(State.RETURNING_TO_START)
+            log_info(self.logger, "Trash collection complete, returning to home")
+            self.sm.transition_to(State.HOME)
     
     def _check_color_match(self, frame, bbox, target_color):
         """
@@ -691,8 +683,8 @@ class BinDieselSystem:
             log_error(self.logger, e, "Error in home marker detection")
             return {'detected': False, 'center_x': None, 'center_y': None, 'width': None, 'area': None, 'confidence': None, 'color_match': None}
     
-    def handle_returning_to_start_state(self):
-        """Handle RETURNING_TO_START state - simplified: turn 180°, find red square, drive to it"""
+    def handle_home_state(self):
+        """Handle HOME state - simplified: turn 180°, find red square, drive to it"""
         # Step 1: Turn 180 degrees (only once when entering this state)
         if not hasattr(self, 'return_turn_complete'):
             log_info(self.logger, "Returning to home: Turning 180 degrees...")
@@ -733,7 +725,6 @@ class BinDieselSystem:
                     # Clean up return state
                     if hasattr(self, 'return_turn_complete'):
                         delattr(self, 'return_turn_complete')
-                    self.path_tracker.stop_tracking()
                     self.sm.transition_to(State.IDLE)
                     return
                 
@@ -767,255 +758,249 @@ class BinDieselSystem:
                 delattr(self, 'return_turn_complete')
             self.sm.transition_to(State.IDLE)
     
-    def handle_manual_mode_state(self):
-        """Handle MANUAL_MODE state - waiting for voice commands and hand gestures"""
-        # Initialize gesture controller on-demand when entering manual mode
-        if not self._gesture_controller_initialized:
-            self._ensure_gesture_controller_initialized()
-        
-        # Voice recognizer should already be initialized after wake word detection
-        # (initialized in handle_idle_state when wake word is detected)
-        voice_command = None
-        if self.voice:
-            voice_command = self.voice.recognize_command(timeout=0.1)  # Quick check
-        
-        # Check for hand gesture command (if available)
-        gesture_command = None
-        if self.gesture_controller:
-            try:
-                # Get frame from pose tracker (shared camera, use cached frame)
-                frame = self.frame_cache.get(self.visual.get_frame)
-                gesture_command = self.gesture_controller.detect_command(frame)
-            except Exception as e:
-                conditional_log(self.logger, 'debug',
-                              f"Gesture detection error: {e}",
-                              self.debug_mode)
-        
-        # Process commands (voice takes priority, then gesture)
-        command = voice_command or gesture_command
-        
-        if command:
-            if command == 'AUTOMATIC_MODE':
-                # Return to automatic mode
-                print("[Main] Returning to automatic mode")
-                self.current_manual_command = None
-                self.motor.stop()
-                self.servo.center()
-                self.sm.transition_to(State.ACTIVE)
-            elif command == 'STOP':
-                # Stop current command
-                print(f"[Main] Stopping current command (from {'voice' if voice_command else 'gesture'})")
-                self.current_manual_command = None
-                self.motor.stop()
-                self.servo.center()
-            else:
-                # New command received
-                source = 'voice' if voice_command else 'gesture'
-                print(f"[Main] New command received: {command} (from {source})")
-                self.current_manual_command = command
-                self.last_command_time = time.time()
-        
-        # If no voice or gesture controller available, return to idle
-        if not self.voice and not self.gesture_controller:
-            print("[Main] No input method available, returning to idle")
-            self.sm.transition_to(State.IDLE)
-            return
-        
-        # Execute current command continuously until new command/stop
-        if self.current_manual_command:
-            self.execute_manual_command_continuous(self.current_manual_command)
+    # def handle_manual_mode_state(self):
+    #     """Handle MANUAL_MODE state - waiting for voice commands and hand gestures - COMMENTED OUT"""
+    #     # Initialize gesture controller on-demand when entering manual mode
+    #     if not self._gesture_controller_initialized:
+    #         self._ensure_gesture_controller_initialized()
+    #     
+    #     # Voice recognizer should already be initialized after wake word detection
+    #     # (initialized in handle_idle_state when wake word is detected)
+    #     voice_command = None
+    #     if self.voice:
+    #         voice_command = self.voice.recognize_command(timeout=0.1)  # Quick check
+    #     
+    #     # Check for hand gesture command (if available)
+    #     gesture_command = None
+    #     if self.gesture_controller:
+    #         try:
+    #             # Get frame from pose tracker (shared camera, use cached frame)
+    #             frame = self.frame_cache.get(self.visual.get_frame)
+    #             gesture_command = self.gesture_controller.detect_command(frame)
+    #         except Exception as e:
+    #             conditional_log(self.logger, 'debug',
+    #                           f"Gesture detection error: {e}",
+    #                           self.debug_mode)
+    #     
+    #     # Process commands (voice takes priority, then gesture)
+    #     command = voice_command or gesture_command
+    #     
+    #     if command:
+    #         if command == 'AUTOMATIC_MODE':
+    #             # Return to automatic mode
+    #             print("[Main] Returning to automatic mode")
+    #             self.current_manual_command = None
+    #             self.motor.stop()
+    #             self.servo.center()
+    #             self.sm.transition_to(State.IDLE)
+    #         elif command == 'STOP':
+    #             # Stop current command
+    #             print(f"[Main] Stopping current command (from {'voice' if voice_command else 'gesture'})")
+    #             self.current_manual_command = None
+    #             self.motor.stop()
+    #             self.servo.center()
+    #         else:
+    #             # New command received
+    #             source = 'voice' if voice_command else 'gesture'
+    #             print(f"[Main] New command received: {command} (from {source})")
+    #             self.current_manual_command = command
+    #     
+    #     # If no voice or gesture controller available, return to idle
+    #     if not self.voice and not self.gesture_controller:
+    #         log_info(self.logger, "No input method available, returning to IDLE state")
+    #         self.sm.transition_to(State.IDLE)
+    #         return
+    #     
+    #     # Execute current command continuously until new command/stop
+    #     if self.current_manual_command:
+    #         self.execute_manual_command_continuous(self.current_manual_command)
+    # 
+    # def execute_manual_command_continuous(self, command):
+    #     """Execute manual command continuously until stopped - COMMENTED OUT"""
+    #     if command == 'FORWARD':
+    #         self.motor.forward(config.MOTOR_MEDIUM)
+    #         self.servo.center()
+    #     
+    #     elif command == 'LEFT':
+    #         self.motor.forward(config.MOTOR_SLOW)
+    #         self.servo.turn_left(0.5)
+    #     
+    #     elif command == 'RIGHT':
+    #         self.motor.forward(config.MOTOR_SLOW)
+    #         self.servo.turn_right(0.5)
+    #     
+    #     elif command == 'TURN_AROUND':
+    #         # Turn around is a one-time action
+    #         if not hasattr(self, 'turn_around_complete'):
+    #             self.motor.stop()
+    #             self.servo.turn_left(1.0)
+    #             time.sleep(2)  # Turn around
+    #             self.servo.center()
+    #             self.turn_around_complete = True
+    #             # After turn around, continue forward
+    #             self.current_manual_command = 'FORWARD'
+    #             self.motor.forward(config.MOTOR_MEDIUM)
+    #     
+    #     # Reset turn around flag if command changed
+    #     if command != 'TURN_AROUND' and hasattr(self, 'turn_around_complete'):
+    #         delattr(self, 'turn_around_complete')
     
-    def execute_manual_command_continuous(self, command):
-        """Execute manual command continuously until stopped"""
-        if command == 'FORWARD':
-            self.motor.forward(config.MOTOR_MEDIUM)
-            self.servo.center()
-        
-        elif command == 'LEFT':
-            self.motor.forward(config.MOTOR_SLOW)
-            self.servo.turn_left(0.5)
-        
-        elif command == 'RIGHT':
-            self.motor.forward(config.MOTOR_SLOW)
-            self.servo.turn_right(0.5)
-        
-        elif command == 'TURN_AROUND':
-            # Turn around is a one-time action
-            if not hasattr(self, 'turn_around_complete'):
-                self.motor.stop()
-                self.servo.turn_left(1.0)
-                time.sleep(2)  # Turn around
-                self.servo.center()
-                self.turn_around_complete = True
-                # After turn around, continue forward
-                self.current_manual_command = 'FORWARD'
-                self.motor.forward(config.MOTOR_MEDIUM)
-        
-        # Reset turn around flag if command changed
-        if command != 'TURN_AROUND' and hasattr(self, 'turn_around_complete'):
-            delattr(self, 'turn_around_complete')
-    
-    def handle_radd_mode_state(self):
-        """Handle RADD_MODE state - drive towards users violating dress code"""
-        if not self.radd_detector:
-            log_warning(self.logger, "RADD detector not available, returning to idle")
-            self.sm.transition_to(State.IDLE)
-            return
-        
-        # Get pose detection results (use cached frame if available)
-        try:
-            # Use frame cache to avoid redundant captures
-            frame = self.frame_cache.get(self.visual.get_frame)
-            results, yolo_result = self.visual.detect(frame)
-        except Exception as e:
-            log_error(self.logger, e, "Error in visual detection for RADD mode")
-            return
-        
-        # Get tracked persons from results
-        tracked_persons = {}
-        for pose in results.get('poses', []):
-            track_id = pose.get('track_id')
-            if track_id is not None:
-                tracked_persons[track_id] = {
-                    'box': pose.get('box'),
-                    'keypoints': pose.get('keypoints'),
-                    'angle': pose.get('angle'),
-                    'is_centered': pose.get('is_centered')
-                }
-        
-        # Detect violations for all tracked persons and maintain state
-        violation_info = self.radd_detector.detect_violations_for_tracked_persons(
-            frame, 
-            tracked_persons
-        )
-        
-        active_violators = violation_info['active_violators']
-        tracked_violators = violation_info['tracked_violators']
-        
-        if not active_violators:
-            # No active violators - stop and wait
-            if self.sm.get_time_in_state() > 5.0:  # Wait 5 seconds
-                conditional_log(self.logger, 'info',
-                              "No RADD violations detected, returning to idle",
-                              config.DEBUG_MODE)
-                self.motor.stop()
-                self.servo.center()
-                self.sm.transition_to(State.IDLE)
-            return
-        
-        # Select target violator (prioritize most recent or closest)
-        target_violator_id = None
-        target_violator_info = None
-        
-        # Strategy: Follow the violator we've been tracking longest (most persistent)
-        # Or the one currently in frame
-        for violator_id in active_violators:
-            violator_info = tracked_violators[violator_id]
-            # Check if this violator is currently in frame
-            if violator_id in tracked_persons:
-                target_violator_id = violator_id
-                target_violator_info = violator_info
-                # Get current position from tracked persons
-                person_data = tracked_persons[violator_id]
-                target_violator_info['current_box'] = person_data['box']
-                target_violator_info['current_angle'] = person_data.get('angle')
-                target_violator_info['is_centered'] = person_data.get('is_centered', False)
-                break
-        
-        # If no violator in current frame, use most recent one
-        if target_violator_id is None and tracked_violators:
-            # Get most recently seen violator
-            most_recent = max(tracked_violators.items(), 
-                            key=lambda x: x[1]['last_seen'])
-            target_violator_id, target_violator_info = most_recent
-            conditional_log(self.logger, 'debug',
-                          f"Following violator {target_violator_id} (not in current frame)",
-                          config.DEBUG_MODE)
-        
-        # Drive towards the target violator
-        if target_violator_info:
-            # Check TOF sensor for emergency stop
-            if self.tof and config.EMERGENCY_STOP_ENABLED:
-                distance = self.tof.read_distance()
-                if self.tof.is_emergency_stop():
-                    conditional_log(self.logger, 'info',
-                                  "EMERGENCY STOP: Object too close in RADD mode!",
-                                  config.DEBUG_MODE)
-                    self.motor.stop()
-                    self.servo.center()
-                    return
-                
-                if self.tof.is_too_close():
-                    conditional_log(self.logger, 'info',
-                                  f"Target violator {target_violator_id} reached, stopping",
-                                  config.DEBUG_MODE)
-                    self.motor.stop()
-                    self.servo.center()
-                    
-                    # "Yell" at violator - display violation message prominently
-                    violation_type = []
-                    if target_violator_info['no_full_pants']:
-                        violation_type.append("SHORTS/NO PANTS")
-                    if target_violator_info['no_closed_toe_shoes']:
-                        violation_type.append("NON-CLOSED-TOE SHOES")
-                    
-                    violation_text = " AND ".join(violation_type) if violation_type else "DRESS CODE VIOLATION"
-                    
-                    # Log prominently
-                    print("\n" + "=" * 70)
-                    print(f"⚠️  RADD VIOLATION DETECTED ⚠️")
-                    print("=" * 70)
-                    print(f"Person ID: {target_violator_id}")
-                    print(f"Violation: {violation_text}")
-                    print(f"Confidence: {target_violator_info['confidence']:.2f}")
-                    print(f"First Detected: {target_violator_info.get('first_detected', 'N/A')}")
-                    print("=" * 70)
-                    print("🚨 DRESS CODE VIOLATION - PLEASE COMPLY 🚨")
-                    print("=" * 70 + "\n")
-                    
-                    log_info(self.logger, 
-                           f"RADD VIOLATION: Person {target_violator_id} - {violation_text}")
-                    
-                    # TODO: Add audio "yelling" here (TTS or pre-recorded audio)
-                    # Example: self.audio_player.play("dress_code_violation.wav")
-                    
-                    return
-            
-            # Calculate steering based on violator position
-            person_box = target_violator_info.get('current_box') or target_violator_info.get('person_box')
-            if person_box:
-                x1, y1, x2, y2 = person_box
-                person_center_x = (x1 + x2) / 2
-                frame_center_x = config.CAMERA_WIDTH / 2
-                offset = person_center_x - frame_center_x
-                angle = (offset / config.CAMERA_WIDTH) * 102.0  # Camera FOV
-                
-                # Convert angle to steering
-                steering_position = (angle / 45.0) * config.ANGLE_TO_STEERING_GAIN
-                steering_position = max(-1.0, min(1.0, steering_position))
-                
-                # Move towards target violator
-                if abs(offset) < config.PERSON_CENTER_THRESHOLD:
-                    # Violator is centered - move forward
-                    speed = config.FOLLOW_SPEED
-                    self.motor.forward(speed)
-                    self.servo.center()
-                    conditional_log(self.logger, 'debug',
-                                  f"RADD: Violator {target_violator_id} centered, moving forward",
-                                  config.DEBUG_MODE)
-                else:
-                    # Violator not centered - turn towards them
-                    speed = config.FOLLOW_SPEED * 0.7
-                    self.motor.forward(speed)
-                    self.servo.set_angle(angle)
-                    conditional_log(self.logger, 'debug',
-                                  f"RADD: Turning towards violator {target_violator_id} (angle: {angle:.1f}°)",
-                                  config.DEBUG_MODE)
-                
-                # Track path
-                segment_duration = time.time() - self.last_command_time if self.last_command_time > 0 else 0.1
-                self.path_tracker.add_segment(speed, steering_position, segment_duration)
-                self.last_command_time = time.time()
+    # def handle_radd_mode_state(self):
+    #     """Handle RADD_MODE state - drive towards users violating dress code - COMMENTED OUT"""
+    #     if not self.radd_detector:
+    #         log_warning(self.logger, "RADD detector not available, returning to IDLE state")
+    #         self.sm.transition_to(State.IDLE)
+    #         return
+    #     
+    #     # Get pose detection results (use cached frame if available)
+    #     try:
+    #         # Use frame cache to avoid redundant captures
+    #         frame = self.frame_cache.get(self.visual.get_frame)
+    #         results, yolo_result = self.visual.detect(frame)
+    #     except Exception as e:
+    #         log_error(self.logger, e, "Error in visual detection for RADD mode")
+    #         return
+    #     
+    #     # Get tracked persons from results
+    #     tracked_persons = {}
+    #     for pose in results.get('poses', []):
+    #         track_id = pose.get('track_id')
+    #         if track_id is not None:
+    #             tracked_persons[track_id] = {
+    #                 'box': pose.get('box'),
+    #                 'keypoints': pose.get('keypoints'),
+    #                 'angle': pose.get('angle'),
+    #                 'is_centered': pose.get('is_centered')
+    #             }
+    #     
+    #     # Detect violations for all tracked persons and maintain state
+    #     violation_info = self.radd_detector.detect_violations_for_tracked_persons(
+    #         frame, 
+    #         tracked_persons
+    #     )
+    #     
+    #     active_violators = violation_info['active_violators']
+    #     tracked_violators = violation_info['tracked_violators']
+    #     
+    #     if not active_violators:
+    #         # No active violators - stop and wait
+    #         if self.sm.get_time_in_state() > 5.0:  # Wait 5 seconds
+    #             conditional_log(self.logger, 'info',
+    #                           "No RADD violations detected, returning to idle",
+    #                           config.DEBUG_MODE)
+    #             self.motor.stop()
+    #             self.servo.center()
+    #             self.sm.transition_to(State.IDLE)
+    #         return
+    #     
+    #     # Select target violator (prioritize most recent or closest)
+    #     target_violator_id = None
+    #     target_violator_info = None
+    #     
+    #     # Strategy: Follow the violator we've been tracking longest (most persistent)
+    #     # Or the one currently in frame
+    #     for violator_id in active_violators:
+    #         violator_info = tracked_violators[violator_id]
+    #         # Check if this violator is currently in frame
+    #         if violator_id in tracked_persons:
+    #             target_violator_id = violator_id
+    #             target_violator_info = violator_info
+    #             # Get current position from tracked persons
+    #             person_data = tracked_persons[violator_id]
+    #             target_violator_info['current_box'] = person_data['box']
+    #             target_violator_info['current_angle'] = person_data.get('angle')
+    #             target_violator_info['is_centered'] = person_data.get('is_centered', False)
+    #             break
+    #     
+    #     # If no violator in current frame, use most recent one
+    #     if target_violator_id is None and tracked_violators:
+    #         # Get most recently seen violator
+    #         most_recent = max(tracked_violators.items(), 
+    #                         key=lambda x: x[1]['last_seen'])
+    #         target_violator_id, target_violator_info = most_recent
+    #         conditional_log(self.logger, 'debug',
+    #                       f"Following violator {target_violator_id} (not in current frame)",
+    #                       config.DEBUG_MODE)
+    #     
+    #     # Drive towards the target violator
+    #     if target_violator_info:
+    #         # Check TOF sensor for emergency stop
+    #         if self.tof and config.EMERGENCY_STOP_ENABLED:
+    #             distance = self.tof.read_distance()
+    #             if self.tof.is_emergency_stop():
+    #                 conditional_log(self.logger, 'info',
+    #                               "EMERGENCY STOP: Object too close in RADD mode!",
+    #                               config.DEBUG_MODE)
+    #                 self.motor.stop()
+    #                 self.servo.center()
+    #                 return
+    #             
+    #             if self.tof.is_too_close():
+    #                 conditional_log(self.logger, 'info',
+    #                               f"Target violator {target_violator_id} reached, stopping",
+    #                               config.DEBUG_MODE)
+    #                 self.motor.stop()
+    #                 self.servo.center()
+    #                 
+    #                 # "Yell" at violator - display violation message prominently
+    #                 violation_type = []
+    #                 if target_violator_info['no_full_pants']:
+    #                     violation_type.append("SHORTS/NO PANTS")
+    #                 if target_violator_info['no_closed_toe_shoes']:
+    #                     violation_type.append("NON-CLOSED-TOE SHOES")
+    #                 
+    #                 violation_text = " AND ".join(violation_type) if violation_type else "DRESS CODE VIOLATION"
+    #                 
+    #                 # Log prominently
+    #                 print("\n" + "=" * 70)
+    #                 print(f"⚠️  RADD VIOLATION DETECTED ⚠️")
+    #                 print("=" * 70)
+    #                 print(f"Person ID: {target_violator_id}")
+    #                 print(f"Violation: {violation_text}")
+    #                 print(f"Confidence: {target_violator_info['confidence']:.2f}")
+    #                 print(f"First Detected: {target_violator_info.get('first_detected', 'N/A')}")
+    #                 print("=" * 70)
+    #                 print("🚨 DRESS CODE VIOLATION - PLEASE COMPLY 🚨")
+    #                 print("=" * 70 + "\n")
+    #                 
+    #                 log_info(self.logger, 
+    #                        f"RADD VIOLATION: Person {target_violator_id} - {violation_text}")
+    #                 
+    #                 # TODO: Add audio "yelling" here (TTS or pre-recorded audio)
+    #                 # Example: self.audio_player.play("dress_code_violation.wav")
+    #                 
+    #                 return
+    #         
+    #         # Calculate steering based on violator position
+    #         person_box = target_violator_info.get('current_box') or target_violator_info.get('person_box')
+    #         if person_box:
+    #             x1, y1, x2, y2 = person_box
+    #             person_center_x = (x1 + x2) / 2
+    #             frame_center_x = config.CAMERA_WIDTH / 2
+    #             offset = person_center_x - frame_center_x
+    #             angle = (offset / config.CAMERA_WIDTH) * 102.0  # Camera FOV
+    #             
+    #             # Convert angle to steering
+    #             steering_position = (angle / 45.0) * config.ANGLE_TO_STEERING_GAIN
+    #             steering_position = max(-1.0, min(1.0, steering_position))
+    #             
+    #             # Move towards target violator
+    #             if abs(offset) < config.PERSON_CENTER_THRESHOLD:
+    #                 # Violator is centered - move forward
+    #                 speed = config.FOLLOW_SPEED
+    #                 self.motor.forward(speed)
+    #                 self.servo.center()
+    #                 conditional_log(self.logger, 'debug',
+    #                               f"RADD: Violator {target_violator_id} centered, moving forward",
+    #                               config.DEBUG_MODE)
+    #             else:
+    #                 # Violator not centered - turn towards them
+    #                 speed = config.FOLLOW_SPEED * 0.7
+    #                 self.motor.forward(speed)
+    #                 self.servo.set_angle(angle)
+    #                 conditional_log(self.logger, 'debug',
+    #                               f"RADD: Turning towards violator {target_violator_id} (angle: {angle:.1f}°)",
+    #                               config.DEBUG_MODE)
     
     def run(self):
         """Main control loop"""
@@ -1043,14 +1028,17 @@ class BinDieselSystem:
                 elif state == State.STOPPED:
                     self.handle_stopped_state()
                 
-                elif state == State.RETURNING_TO_START:
-                    self.handle_returning_to_start_state()
+                elif state == State.HOME:
+                    self.handle_home_state()
                 
-                elif state == State.MANUAL_MODE:
-                    self.handle_manual_mode_state()
+                elif state == State.RETURNING_TO_START:  # Legacy - redirects to HOME
+                    self.handle_home_state()
                 
-                elif state == State.RADD_MODE:
-                    self.handle_radd_mode_state()
+                # elif state == State.MANUAL_MODE:  # COMMENTED OUT
+                #     self.handle_manual_mode_state()
+                # 
+                # elif state == State.RADD_MODE:  # COMMENTED OUT
+                #     self.handle_radd_mode_state()
                 
                 # Log performance stats periodically (every 5 seconds)
                 if self.frame_count % 500 == 0:  # ~10 FPS * 50 = 5 seconds
@@ -1099,13 +1087,13 @@ class BinDieselSystem:
             except Exception as e:
                 log_warning(self.logger, f"Error stopping visual detector: {e}", "Cleanup")
         
-        if hasattr(self, 'gesture_controller') and self.gesture_controller:
-            try:
-                # Only stop if it has its own camera (shouldn't if we're sharing)
-                if hasattr(self.gesture_controller, 'picam2') and self.gesture_controller.picam2:
-                    self.gesture_controller.stop()
-            except Exception as e:
-                log_warning(self.logger, f"Error stopping gesture controller: {e}", "Cleanup")
+        # if hasattr(self, 'gesture_controller') and self.gesture_controller:  # COMMENTED OUT
+        #     try:
+        #         # Only stop if it has its own camera (shouldn't if we're sharing)
+        #         if hasattr(self.gesture_controller, 'picam2') and self.gesture_controller.picam2:
+        #             self.gesture_controller.stop()
+        #     except Exception as e:
+        #         log_warning(self.logger, f"Error stopping gesture controller: {e}", "Cleanup")
         
         if hasattr(self, 'motor'):
             try:
@@ -1119,11 +1107,12 @@ class BinDieselSystem:
             except Exception as e:
                 log_warning(self.logger, f"Error cleaning up servo: {e}", "Cleanup")
         
-        if hasattr(self, 'voice') and self.voice:
-            try:
-                self.voice.cleanup()
-            except Exception as e:
-                log_warning(self.logger, f"Error cleaning up voice recognizer: {e}", "Cleanup")
+        # Voice recognizer cleanup - COMMENTED OUT (no voice commands)
+        # if hasattr(self, 'voice') and self.voice:
+        #     try:
+        #         self.voice.cleanup()
+        #     except Exception as e:
+        #         log_warning(self.logger, f"Error cleaning up voice recognizer: {e}", "Cleanup")
         
         log_info(self.logger, "Cleanup complete")
 

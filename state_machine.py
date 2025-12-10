@@ -10,15 +10,17 @@ import config
 
 class State(Enum):
     """System states"""
-    IDLE = auto()
-    ACTIVE = auto()
+    IDLE = auto()  # Wake word only - no voice recognizer (exclusive mic access)
+    ACTIVE = auto()  # Post-wake-word: voice commands and visual detection for mode selection
     TRACKING_USER = auto()
     FOLLOWING_USER = auto()
-    STOPPED = auto()
-    RETURNING_TO_START = auto()
+    STOPPED = auto()  # At target distance, waiting for trash collection
+    HOME = auto()  # Returning to home marker (turn 180, detect marker, drive to it)
     MANUAL_MODE = auto()
     RADD_MODE = auto()  # Drive towards users not wearing full pants or closed-toe shoes
     # Legacy states (for compatibility)
+    DORMANT = auto()  # Deprecated - use IDLE instead
+    RETURNING_TO_START = auto()  # Deprecated - use HOME instead
     DRIVING_TO_USER = auto()
     STOPPED_AT_USER = auto()
     RETURNING = auto()
@@ -26,7 +28,7 @@ class State(Enum):
 
 class StateMachine:
     def __init__(self, tracking_timeout=30.0):
-        self.state = State.IDLE
+        self.state = State.IDLE  # Start in IDLE state (wake word only)
         self.state_enter_time = time.time()
         self.tracking_timeout = tracking_timeout
 
