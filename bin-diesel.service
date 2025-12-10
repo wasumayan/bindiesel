@@ -1,0 +1,18 @@
+[Unit]
+Description=Bin Diesel Robot Car System
+After=network.target sound.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Desktop/angleestimationbindiesel
+Environment="PATH=/home/pi/miniforge3/envs/bindiesel/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/pi/miniforge3/envs/bindiesel/bin/python /home/pi/Desktop/angleestimationbindiesel/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

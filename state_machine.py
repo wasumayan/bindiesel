@@ -10,16 +10,24 @@ import config
 
 class State(Enum):
     """System states"""
-    IDLE = auto() 
+    IDLE = auto()
+    ACTIVE = auto()
+    TRACKING_USER = auto()
+    FOLLOWING_USER = auto()
+    STOPPED = auto()
+    RETURNING_TO_START = auto()
+    MANUAL_MODE = auto()
+    # Legacy states (for compatibility)
     DRIVING_TO_USER = auto()
     STOPPED_AT_USER = auto()
     RETURNING = auto()
 
 
 class StateMachine:
-    def __init__(self):
+    def __init__(self, tracking_timeout=30.0):
         self.state = State.IDLE
         self.state_enter_time = time.time()
+        self.tracking_timeout = tracking_timeout
 
         self.forward_start_time = None
         self.forward_elapsed_time = 0.0 
@@ -35,19 +43,22 @@ class StateMachine:
         return time.time() - self.state_enter_time
     
     def transition_to(self, new_state: State):
-
         if config.DEBUG_STATE:
             print(f"[SM] {self.state.name} -> {new_state.name}")
        
         self.state = new_state
         self.state_enter_time = time.time()
     
+    def is_timeout(self):
+        """Check if tracking timeout has been exceeded"""
+        return self.get_time_in_state() > self.tracking_timeout
+    
     def set_start_position(self, position):
         self.start_position = position
         print(f"[StateMachine] Start position set: {position}")
     
     def get_start_position(self):
-        return self.start_position
+        return getattr(self, 'start_position', None)
 
 
 if __name__ == '__main__':

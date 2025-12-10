@@ -17,12 +17,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 from state_machine import StateMachine, State
 from wake_word_detector import WakeWordDetector
-from visual_detector import VisualDetector
+# Use YOLO pose tracker instead of basic visual detector
+from test_yolo_pose_tracking import YOLOPoseTracker
 from motor_controller import MotorController
 from servo_controller import ServoController
 from tof_sensor import TOFSensor
 from voice_recognizer import VoiceRecognizer
 from path_tracker import PathTracker
+from hand_gesture_controller import HandGestureController, get_gesture_command
 
 
 class BinDieselSystem:
@@ -59,17 +61,20 @@ class BinDieselSystem:
             print(f"[Main] ERROR: Failed to initialize wake word detector: {e}")
             sys.exit(1)
         
-        # Initialize visual detector
-        print("\n[Main] Initializing visual detector...")
+        # Initialize YOLO pose tracker (replaces visual detector)
+        print("\n[Main] Initializing YOLO pose tracker...")
         try:
-            self.visual = VisualDetector(
-                model_path=config.YOLO_MODEL,
+            self.visual = YOLOPoseTracker(
+                model_path=config.YOLO_POSE_MODEL,
                 width=config.CAMERA_WIDTH,
                 height=config.CAMERA_HEIGHT,
-                confidence=config.YOLO_CONFIDENCE
+                confidence=config.YOLO_CONFIDENCE,
+                tracker='bytetrack.yaml',
+                device='cpu'
             )
+            print("[Main] YOLO pose tracker initialized with tracking enabled")
         except Exception as e:
-            print(f"[Main] ERROR: Failed to initialize visual detector: {e}")
+            print(f"[Main] ERROR: Failed to initialize YOLO pose tracker: {e}")
             self.cleanup()
             sys.exit(1)
         
@@ -121,8 +126,32 @@ class BinDieselSystem:
             )
         except Exception as e:
             print(f"[Main] WARNING: Failed to initialize voice recognizer: {e}")
-            print("[Main] Manual mode will not be available")
+            print("[Main] Manual mode voice commands will not be available")
             self.voice = None
+        
+        # Initialize hand gesture controller (for manual mode)
+        # Note: We'll share the camera frame from pose tracker to avoid duplicate cameras
+        print("\n[Main] Initializing hand gesture controller...")
+        try:
+            self.gesture_controller = HandGestureController(
+                hand_model_path=config.HAND_MODEL_PATH,
+                pose_model_path=config.YOLO_POSE_MODEL,
+                width=config.CAMERA_WIDTH,
+                height=config.CAMERA_HEIGHT,
+                confidence=config.YOLO_CONFIDENCE,
+                gesture_hold_time=config.HAND_GESTURE_HOLD_TIME
+            )
+            # Stop the gesture controller's camera since we'll use pose tracker's frame
+            # This avoids having two cameras open simultaneously
+            if hasattr(self.gesture_controller, 'picam2') and self.gesture_controller.picam2:
+                self.gesture_controller.picam2.stop()
+                self.gesture_controller.picam2.close()
+                self.gesture_controller.picam2 = None
+            print("[Main] Hand gesture controller initialized (using shared camera frame)")
+        except Exception as e:
+            print(f"[Main] WARNING: Failed to initialize hand gesture controller: {e}")
+            print("[Main] Manual mode hand gestures will not be available")
+            self.gesture_controller = None
         
         # Control flags
         self.running = True
@@ -164,11 +193,16 @@ class BinDieselSystem:
     
     def handle_active_state(self):
         """Handle ACTIVE state - waiting for mode selection"""
-        # Check for wake word again (for "manual mode" command)
-        # For now, we'll check visual detection to see if user raises arm
-        # Or wait for voice command "manual mode"
+        # Check for voice command "manual mode" (if voice available)
+        if self.voice:
+            command = self.voice.recognize_command(timeout=0.1)  # Quick check
+            if command and command == 'MANUAL_MODE':
+                print("[Main] Manual mode activated via voice")
+                self.state_machine.transition_to(State.MANUAL_MODE)
+                self.current_manual_command = None
+                return
         
-        # Check visual detection
+        # Check visual detection for autonomous mode
         current_time = time.time()
         if current_time - self.last_visual_update > self.visual_update_interval:
             result = self.visual.update()
@@ -180,9 +214,6 @@ class BinDieselSystem:
                 self.state_machine.set_start_position("origin")  # Store starting position
                 self.path_tracker.start_tracking()  # Start tracking path
                 print("[Main] Autonomous mode: User detected with raised arm")
-        
-        # TODO: Check for "manual mode" voice command
-        # For now, we'll skip manual mode detection in this basic version
     
     def handle_tracking_user_state(self):
         """Handle TRACKING_USER state - detecting and tracking user"""
@@ -242,8 +273,8 @@ class BinDieselSystem:
             self.state_machine.transition_to(State.STOPPED)
             return
         
-            # Calculate steering based on angle
-            if result['angle'] is not None:
+        # Calculate steering based on angle
+        if result['angle'] is not None:
                 angle = result['angle']
                 
                 if self.debug_mode and config.DEBUG_VISUAL:
@@ -340,14 +371,25 @@ class BinDieselSystem:
             self.state_machine.transition_to(State.IDLE)
     
     def handle_manual_mode_state(self):
-        """Handle MANUAL_MODE state - waiting for voice commands"""
-        if not self.voice:
-            print("[Main] Voice recognizer not available, returning to idle")
-            self.state_machine.transition_to(State.IDLE)
-            return
+        """Handle MANUAL_MODE state - waiting for voice commands and hand gestures"""
+        # Check for voice command (if available)
+        voice_command = None
+        if self.voice:
+            voice_command = self.voice.recognize_command(timeout=0.1)  # Quick check
         
-        # Check for new voice command (non-blocking with timeout)
-        command = self.voice.recognize_command(timeout=0.5)  # Short timeout for responsiveness
+        # Check for hand gesture command (if available)
+        gesture_command = None
+        if self.gesture_controller:
+            try:
+                # Get frame from pose tracker (shared camera)
+                frame = self.visual.get_frame()
+                gesture_command = self.gesture_controller.detect_command(frame)
+            except Exception as e:
+                if self.debug_mode:
+                    print(f"[Main] DEBUG: Gesture detection error: {e}")
+        
+        # Process commands (voice takes priority, then gesture)
+        command = voice_command or gesture_command
         
         if command:
             if command == 'AUTOMATIC_MODE':
@@ -359,15 +401,22 @@ class BinDieselSystem:
                 self.state_machine.transition_to(State.ACTIVE)
             elif command == 'STOP':
                 # Stop current command
-                print("[Main] Stopping current command")
+                print(f"[Main] Stopping current command (from {'voice' if voice_command else 'gesture'})")
                 self.current_manual_command = None
                 self.motor.stop()
                 self.servo.center()
             else:
                 # New command received
-                print(f"[Main] New command received: {command}")
+                source = 'voice' if voice_command else 'gesture'
+                print(f"[Main] New command received: {command} (from {source})")
                 self.current_manual_command = command
                 self.last_command_time = time.time()
+        
+        # If no voice or gesture controller available, return to idle
+        if not self.voice and not self.gesture_controller:
+            print("[Main] No input method available, returning to idle")
+            self.state_machine.transition_to(State.IDLE)
+            return
         
         # Execute current command continuously until new command/stop
         if self.current_manual_command:
@@ -414,15 +463,6 @@ class BinDieselSystem:
                     self.handle_idle_state()
                 
                 elif state == State.ACTIVE:
-                    # Check for "manual mode" voice command
-                    if self.voice:
-                        command = self.voice.recognize_command(timeout=0.1)  # Quick check
-                        if command and command == 'MANUAL_MODE':
-                            print("[Main] Manual mode activated")
-                            self.state_machine.transition_to(State.MANUAL_MODE)
-                            self.current_manual_command = None
-                            continue
-                    
                     self.handle_active_state()
                 
                 elif state == State.TRACKING_USER:
@@ -436,9 +476,6 @@ class BinDieselSystem:
                 
                 elif state == State.RETURNING_TO_START:
                     self.handle_returning_to_start_state()
-                
-                elif state == State.MANUAL_MODE:
-                    self.handle_manual_mode_state()
                 
                 elif state == State.MANUAL_MODE:
                     self.handle_manual_mode_state()
@@ -470,6 +507,10 @@ class BinDieselSystem:
             self.wake_word.stop()
         if hasattr(self, 'visual'):
             self.visual.stop()
+        if hasattr(self, 'gesture_controller') and self.gesture_controller:
+            # Only stop if it has its own camera (shouldn't if we're sharing)
+            if hasattr(self.gesture_controller, 'picam2') and self.gesture_controller.picam2:
+                self.gesture_controller.stop()
         if hasattr(self, 'motor'):
             self.motor.cleanup()
         if hasattr(self, 'servo'):

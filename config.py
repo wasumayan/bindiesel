@@ -20,6 +20,7 @@ RETURN_MARGIN = 0.5     # buffer for return time
 
 # Motor Control Values (PWM duty cycle percentages
 PWM_FREQUENCY_MOTOR = 40  #Hz 
+PWM_FREQUENCY = 40  # Alias for motor frequency
 
 MOTOR_STOP = 100.0      # 0% duty cycle = stopped
 MOTOR_MAX = 92.7        # 100% duty cycle = maximum speed
@@ -34,10 +35,18 @@ SERVO_RIGHT_MAX = 89.318 # 10% = full right
 # Visual Detection Configuration
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
-YOLO_MODEL = 'yolo11n.pt'  # YOLO nano model for speed
+YOLO_MODEL = 'yolo11n.pt'  # YOLO nano model for speed (object detection)
+YOLO_POSE_MODEL = 'yolo11n-pose.pt'  # YOLO pose model (for pose estimation + tracking)
 YOLO_CONFIDENCE = 0.25
 PERSON_CENTER_THRESHOLD = 30  # Pixels from center to consider "centered"
 ANGLE_TO_STEERING_GAIN = 0.5  # How much to turn based on angle
+TRACKING_TIMEOUT = 30.0  # Seconds before returning to idle if no user detected
+
+# Motor Speed Configuration
+FOLLOW_SPEED = 0.6  # Speed when following user (0.0-1.0)
+MOTOR_SLOW = 0.3  # Slow speed for turning
+MOTOR_MEDIUM = 0.5  # Medium speed
+MOTOR_FAST = 0.8  # Fast speed
 
 # Wake Word Configuration
 WAKE_WORD_MODEL_PATH = 'bin-diesel_en_raspberry-pi_v3_0_0/bin-diesel_en_raspberry-pi_v3_0_0.ppn'
@@ -51,6 +60,12 @@ VOICE_COMMAND_TIMEOUT = 5.0  # Seconds to wait for voice command
 
 # Safety Configuration
 EMERGENCY_STOP_ENABLED = True  # Enable TOF emergency stop
+TOF_STOP_DISTANCE_MM = 300  # Stop when within 30cm
+TOF_EMERGENCY_DISTANCE_MM = 100  # Emergency stop when within 10cm
+
+# Hand Gesture Configuration
+HAND_GESTURE_HOLD_TIME = 0.5  # Seconds gesture must be held before executing
+HAND_MODEL_PATH = None  # Path to hand keypoints model (if trained), None to use pose model
 
 # Debug Configuration
 DEBUG_MODE = True  # Enable debug logging throughout system
