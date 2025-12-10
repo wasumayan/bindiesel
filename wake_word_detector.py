@@ -164,16 +164,36 @@ class WakeWordDetector:
     
     def stop(self):
         """Stop listening and cleanup"""
-        if self.stream:
-            self.stream.stop_stream()
-            self.stream.close()
-            self.stream = None
+        try:
+            if self.stream:
+                try:
+                    self.stream.stop_stream()
+                except Exception:
+                    pass  # Stream may already be stopped
+                try:
+                    self.stream.close()
+                except Exception:
+                    pass  # Stream may already be closed
+                self.stream = None
+        except Exception as e:
+            print(f"[WakeWord] Warning: Error stopping stream: {e}")
         
-        if self.audio:
-            self.audio.terminate()
+        try:
+            if self.porcupine:
+                self.porcupine.delete()
+                self.porcupine = None
+        except Exception as e:
+            print(f"[WakeWord] Warning: Error deleting porcupine: {e}")
         
-        if self.porcupine:
-            self.porcupine.delete()
+        try:
+            if self.audio:
+                self.audio.terminate()
+                self.audio = None
+        except Exception as e:
+            # PortAudio errors during cleanup are often non-fatal
+            # (e.g., if already terminated or not initialized)
+            if 'PortAudio' not in str(e) and 'not initialized' not in str(e).lower():
+                print(f"[WakeWord] Warning: Error terminating PyAudio: {e}")
         
         print("[WakeWord] Stopped")
 

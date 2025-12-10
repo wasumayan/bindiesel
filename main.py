@@ -192,9 +192,16 @@ class BinDieselSystem:
         self._voice_initialized = True
         log_info(self.logger, "Initializing voice recognizer on-demand...")
         try:
+            # Get the same microphone device index as wake word detector
+            device_index = None
+            if hasattr(self, 'wake_word') and hasattr(self.wake_word, 'input_device_index'):
+                device_index = self.wake_word.input_device_index
+                log_info(self.logger, f"Using same microphone device as wake word detector (index {device_index})")
+            
             self.voice = VoiceRecognizer(
                 api_key=config.OPENAI_API_KEY,
-                model=config.OPENAI_MODEL
+                model=config.OPENAI_MODEL,
+                device_index=device_index  # Use same device as wake word detector
             )
             log_info(self.logger, "Voice recognizer initialized successfully")
             return True
@@ -247,63 +254,71 @@ class BinDieselSystem:
     
     def handle_active_state(self):
         """Handle ACTIVE state - waiting for mode selection"""
-        # Voice recognizer should already be initialized after wake word detection
-        # (initialized in handle_idle_state when wake word is detected)
-        if self.voice:
-            try:
-                command = self.voice.recognize_command(timeout=0.1)  # Quick check
-                if command:
-                    command_upper = command.upper()
-                    if command_upper == 'MANUAL_MODE':
-                        log_info(self.logger, "Manual mode activated via voice")
-                        # Initialize gesture controller when entering manual mode
-                        if not self._gesture_controller_initialized:
-                            self._ensure_gesture_controller_initialized()
-                        self.sm.transition_to(State.MANUAL_MODE)
-                        self.current_manual_command = None
-                        return
-                    elif command_upper == 'RADD_MODE':
-                        log_info(self.logger, "RADD mode activated via voice")
-                        self.sm.transition_to(State.RADD_MODE)
-                        self.sm.set_start_position("origin")
-                        self.path_tracker.start_tracking()
-                        return
-            except Exception as e:
-                log_error(self.logger, e, "Error in voice recognition")
+        # Get time since entering ACTIVE state
+        time_in_active = self.sm.get_time_in_state()
+        VOICE_LISTENING_TIMEOUT = 5.0  # Listen for voice commands for 5 seconds
         
-        # Check visual detection for autonomous mode (with caching)
-        current_time = time.time()
-        if current_time - self.last_visual_update > self.visual_update_interval:
-            try:
-                # Use cached result if available and fresh (< 100ms old)
-                if (self.cached_visual_result and 
-                    (current_time - self.cached_visual_timestamp) < 0.1):
-                    result = self.cached_visual_result
-                else:
-                    result = self.visual.update()
-                    self.cached_visual_result = result
-                    self.cached_visual_timestamp = current_time
-                
-                self.last_visual_update = current_time
-                
-                if result['person_detected'] and result['arm_raised']:
-                    # User raised arm - enter autonomous mode
-                    log_info(self.logger, f"Person detected with arm raised! Track ID: {result.get('track_id', 'N/A')}, "
-                                         f"Angle: {result.get('angle', 'N/A'):.1f}°")
-                    self.sm.transition_to(State.TRACKING_USER)
-                    self.sm.set_start_position("origin")  # Store starting position
-                    self.path_tracker.start_tracking()  # Start tracking path
-                elif result['person_detected']:
-                    # Person detected but no arm raised - log for debugging
-                    conditional_log(self.logger, 'debug', 
-                                  f"Person detected (no arm raised). Track ID: {result.get('track_id', 'N/A')}",
-                                  self.debug_mode)
-                    self.last_command_time = time.time()  # Initialize command time for path tracking
-                    conditional_log(self.logger, 'info', 
-                                  "Autonomous mode: User detected with raised arm",
-                                  config.DEBUG_MODE)
-            except Exception as e:
-                log_error(self.logger, e, "Error in visual detection update")
+        # For first 5 seconds: only check voice commands
+        if time_in_active < VOICE_LISTENING_TIMEOUT:
+            if self.voice:
+                try:
+                    # Listen for voice commands with remaining time
+                    remaining_time = VOICE_LISTENING_TIMEOUT - time_in_active
+                    # Use a reasonable timeout (at least 0.5s, but not more than remaining time)
+                    listen_timeout = max(0.5, min(remaining_time, 2.0))
+                    
+                    command = self.voice.recognize_command(timeout=listen_timeout)
+                    if command:
+                        command_upper = command.upper()
+                        if command_upper == 'MANUAL_MODE':
+                            log_info(self.logger, "Manual mode activated via voice")
+                            # Initialize gesture controller when entering manual mode
+                            if not self._gesture_controller_initialized:
+                                self._ensure_gesture_controller_initialized()
+                            self.sm.transition_to(State.MANUAL_MODE)
+                            self.current_manual_command = None
+                            return
+                        elif command_upper == 'RADD_MODE':
+                            log_info(self.logger, "RADD mode activated via voice")
+                            self.sm.transition_to(State.RADD_MODE)
+                            self.sm.set_start_position("origin")
+                            self.path_tracker.start_tracking()
+                            return
+                except Exception as e:
+                    # Don't log timeout errors - they're expected when no speech
+                    if 'timeout' not in str(e).lower() and 'WaitTimeoutError' not in str(type(e).__name__):
+                        log_error(self.logger, e, "Error in voice recognition")
+        else:
+            # After 5 seconds: check visual detection for autonomous mode
+            current_time = time.time()
+            if current_time - self.last_visual_update > self.visual_update_interval:
+                try:
+                    # Use cached result if available and fresh (< 100ms old)
+                    if (self.cached_visual_result and 
+                        (current_time - self.cached_visual_timestamp) < 0.1):
+                        result = self.cached_visual_result
+                    else:
+                        result = self.visual.update()
+                        self.cached_visual_result = result
+                        self.cached_visual_timestamp = current_time
+                    
+                    self.last_visual_update = current_time
+                    
+                    if result['person_detected'] and result['arm_raised']:
+                        # User raised arm - enter autonomous mode
+                        log_info(self.logger, f"Person detected with arm raised! Track ID: {result.get('track_id', 'N/A')}, "
+                                             f"Angle: {result.get('angle', 'N/A'):.1f}°")
+                        self.sm.transition_to(State.TRACKING_USER)
+                        self.sm.set_start_position("origin")  # Store starting position
+                        self.path_tracker.start_tracking()  # Start tracking path
+                        return  # Exit early - autonomous mode activated
+                    elif result['person_detected']:
+                        # Person detected but no arm raised - log for debugging
+                        conditional_log(self.logger, 'debug', 
+                                      f"Person detected (no arm raised). Track ID: {result.get('track_id', 'N/A')}",
+                                      self.debug_mode)
+                except Exception as e:
+                    log_error(self.logger, e, "Error in visual detection update")
     
     def handle_tracking_user_state(self):
         """Handle TRACKING_USER state - detecting and tracking user"""
@@ -812,24 +827,44 @@ class BinDieselSystem:
         except Exception as e:
             log_error(self.logger, e, "Error stopping motors during cleanup")
         
-        # Stop all components
-        try:
-            if hasattr(self, 'wake_word'):
+        # Stop all components (with individual error handling to prevent one failure from stopping cleanup)
+        if hasattr(self, 'wake_word'):
+            try:
                 self.wake_word.stop()
-            if hasattr(self, 'visual'):
+            except Exception as e:
+                log_warning(self.logger, f"Error stopping wake word detector: {e}", "Cleanup")
+        
+        if hasattr(self, 'visual'):
+            try:
                 self.visual.stop()
-            if hasattr(self, 'gesture_controller') and self.gesture_controller:
+            except Exception as e:
+                log_warning(self.logger, f"Error stopping visual detector: {e}", "Cleanup")
+        
+        if hasattr(self, 'gesture_controller') and self.gesture_controller:
+            try:
                 # Only stop if it has its own camera (shouldn't if we're sharing)
                 if hasattr(self.gesture_controller, 'picam2') and self.gesture_controller.picam2:
                     self.gesture_controller.stop()
-            if hasattr(self, 'motor'):
+            except Exception as e:
+                log_warning(self.logger, f"Error stopping gesture controller: {e}", "Cleanup")
+        
+        if hasattr(self, 'motor'):
+            try:
                 self.motor.cleanup()
-            if hasattr(self, 'servo'):
+            except Exception as e:
+                log_warning(self.logger, f"Error cleaning up motor: {e}", "Cleanup")
+        
+        if hasattr(self, 'servo'):
+            try:
                 self.servo.cleanup()
-            if hasattr(self, 'voice') and self.voice:
+            except Exception as e:
+                log_warning(self.logger, f"Error cleaning up servo: {e}", "Cleanup")
+        
+        if hasattr(self, 'voice') and self.voice:
+            try:
                 self.voice.cleanup()
-        except Exception as e:
-            log_error(self.logger, e, "Error during component cleanup")
+            except Exception as e:
+                log_warning(self.logger, f"Error cleaning up voice recognizer: {e}", "Cleanup")
         
         log_info(self.logger, "Cleanup complete")
 

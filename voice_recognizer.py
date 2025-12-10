@@ -67,7 +67,7 @@ Return ONLY the command name, nothing else. If the command doesn't match any of 
 Be flexible with variations (e.g., "go forward", "move left", "turn right", "stop", "turn around", "automatic mode", "manual mode", "radd mode", "radd")."""
     
     def __init__(self, api_key=None, model="gpt-4o-mini", energy_threshold=4000, 
-                 pause_threshold=0.8, phrase_time_limit=3.0):
+                 pause_threshold=0.8, phrase_time_limit=3.0, device_index=None):
         """
         Initialize voice recognizer
         
@@ -77,6 +77,7 @@ Be flexible with variations (e.g., "go forward", "move left", "turn right", "sto
             energy_threshold: Minimum energy level for speech detection
             pause_threshold: Seconds of non-speaking audio before phrase ends
             phrase_time_limit: Maximum seconds for a phrase
+            device_index: Optional microphone device index (None = auto-detect, use same as wake word detector)
         """
         if not SPEECH_RECOGNITION_AVAILABLE:
             raise ImportError("speech_recognition library not available!")
@@ -96,6 +97,7 @@ Be flexible with variations (e.g., "go forward", "move left", "turn right", "sto
         
         self.recognizer = sr.Recognizer()
         self.microphone = None
+        self.device_index = device_index  # Store device index for later use
         
         # Try to initialize microphone with error handling
         try:
@@ -103,22 +105,36 @@ Be flexible with variations (e.g., "go forward", "move left", "turn right", "sto
             microphone_list = sr.Microphone.list_microphone_names()
             print(f"[VoiceRecognizer] Found {len(microphone_list)} audio input devices")
             
-            # Try default microphone first
-            try:
-                self.microphone = sr.Microphone()
-                print("[VoiceRecognizer] Using default microphone")
-            except Exception as e:
-                print(f"[VoiceRecognizer] Default microphone failed: {e}")
-                # Try to find any working microphone
-                for i, mic_name in enumerate(microphone_list):
-                    try:
-                        print(f"[VoiceRecognizer] Trying microphone [{i}]: {mic_name}")
-                        self.microphone = sr.Microphone(device_index=i)
-                        print(f"[VoiceRecognizer] Successfully initialized microphone [{i}]: {mic_name}")
-                        break
-                    except Exception as e2:
-                        print(f"[VoiceRecognizer] Microphone [{i}] failed: {e2}")
-                        continue
+            # If device_index is specified, use it (same as wake word detector)
+            if device_index is not None:
+                try:
+                    device_name = microphone_list[device_index] if device_index < len(microphone_list) else f"Device {device_index}"
+                    print(f"[VoiceRecognizer] Using specified device index {device_index}: {device_name}")
+                    self.microphone = sr.Microphone(device_index=device_index)
+                    print(f"[VoiceRecognizer] Successfully initialized microphone [{device_index}]: {device_name}")
+                except Exception as e:
+                    print(f"[VoiceRecognizer] Specified device index {device_index} failed: {e}")
+                    print("[VoiceRecognizer] Falling back to auto-detection...")
+                    device_index = None  # Fall back to auto-detection
+            
+            # If no device_index specified or specified one failed, try auto-detection
+            if self.microphone is None:
+                # Try default microphone first
+                try:
+                    self.microphone = sr.Microphone()
+                    print("[VoiceRecognizer] Using default microphone")
+                except Exception as e:
+                    print(f"[VoiceRecognizer] Default microphone failed: {e}")
+                    # Try to find any working microphone
+                    for i, mic_name in enumerate(microphone_list):
+                        try:
+                            print(f"[VoiceRecognizer] Trying microphone [{i}]: {mic_name}")
+                            self.microphone = sr.Microphone(device_index=i)
+                            print(f"[VoiceRecognizer] Successfully initialized microphone [{i}]: {mic_name}")
+                            break
+                        except Exception as e2:
+                            print(f"[VoiceRecognizer] Microphone [{i}] failed: {e2}")
+                            continue
             
             if self.microphone is None:
                 print("[VoiceRecognizer] WARNING: No working microphone found. Voice commands may not work.")
@@ -263,7 +279,10 @@ Be flexible with variations (e.g., "go forward", "move left", "turn right", "sto
                 return None
         
         except sr.WaitTimeoutError:
-            print("[VoiceRecognizer] Listening timeout - no speech detected")
+            # Don't print timeout messages - they're expected when checking for commands
+            # Only print if timeout is None (waiting indefinitely)
+            if timeout is None:
+                print("[VoiceRecognizer] Listening timeout - no speech detected")
             return None
         except Exception as e:
             print(f"[VoiceRecognizer] Error during recognition: {e}")
@@ -271,7 +290,21 @@ Be flexible with variations (e.g., "go forward", "move left", "turn right", "sto
     
     def cleanup(self):
         """Cleanup audio resources"""
-        # Microphone is automatically cleaned up when context exits
+        try:
+            # Microphone is automatically cleaned up when context exits
+            # But we should try to close it explicitly if it exists
+            if hasattr(self, 'microphone') and self.microphone is not None:
+                try:
+                    # Microphone cleanup is handled by speech_recognition library
+                    # Just set to None to avoid further access
+                    self.microphone = None
+                except Exception:
+                    pass  # Ignore cleanup errors
+        except Exception as e:
+            # PortAudio errors during cleanup are often non-fatal
+            if 'PortAudio' not in str(e) and 'not initialized' not in str(e).lower():
+                print(f"[VoiceRecognizer] Warning: Error during cleanup: {e}")
+        
         print("[VoiceRecognizer] Cleaned up")
 
 
