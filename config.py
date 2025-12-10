@@ -83,8 +83,8 @@ VOICE_COMMAND_TIMEOUT = 5.0  # Seconds to wait for voice command
 
 
 # Safety Configuration
-EMERGENCY_STOP_ENABLED = True  # Enable TOF emergency stop
-TOF_STOP_DISTANCE_MM = 300  # Stop when within 30cm
+EMERGENCY_STOP_ENABLED = False  # Enable TOF emergency stop
+TOF_STOP_DISTANCE_MM = 200  # Stop when within 30cm
 TOF_EMERGENCY_DISTANCE_MM = 100  # Emergency stop when within 10cm
 
 # Performance Configuration
