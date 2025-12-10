@@ -28,9 +28,9 @@ MOTOR_MAX = 92.7        # 100% duty cycle = maximum speed
 # Servo Control Values (PWM duty cycle percentages)
 PWM_FREQUENCY_SERVO = 50 #HZ
 
-SERVO_CENTER = 92.675   # 7.5% = center position (straight)
-SERVO_LEFT_MAX = 95.422  # 5% = full left
-SERVO_RIGHT_MAX = 89.318 # 10% = full right
+SERVO_CENTER = 92.600  
+SERVO_LEFT_MAX = 95.422 
+SERVO_RIGHT_MAX = 89.318 
 
 # Visual Detection Configuration
 CAMERA_WIDTH = 640
@@ -97,18 +97,10 @@ FRAME_SKIP_INTERVAL = 1  # Process every Nth frame (1 = all frames, 2 = every ot
 # Debug Configuration
 DEBUG_MODE = False  # Enable debug logging throughout system
 DEBUG_VISUAL = True  # Debug visual detection specifically
-<<<<<<< HEAD
-DEBUG_MOTOR = False  # Debug motor commands
-DEBUG_SERVO = False  # Debug servo commands
-DEBUG_TOF = False  # Debug TOF sensor readings
-DEBUG_VOICE = False  # Debug voice recognition
-DEBUG_STATE = False  # Debug state machine transitions
-=======
 DEBUG_MOTOR = True  # Debug motor commands
 DEBUG_SERVO = True  # Debug servo commands
 DEBUG_TOF = True  # Debug TOF sensor readings
 DEBUG_VOICE = True  # Debug voice recognition
 DEBUG_STATE = True  # Debug state machine transitions
 DEBUG_PERFORMANCE = False  # Debug performance metrics
->>>>>>> 09d429c9953dce386ef72465175e8f080da302f1
 
