@@ -23,3 +23,11 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# YOLO training outputs (ignore runs/ but keep models/)
+runs/
+*.pt.bak
+
+# Keep models/ directory (trained models for git)
+!models/
+!models/**/*.pt
