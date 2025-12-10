@@ -47,7 +47,8 @@ def train_hand_keypoints_model(output_dir="models", use_gpu=True):
             import torch
             device = 0 if torch.cuda.is_available() else 'cpu'
             if device == 'cpu':
-                print("WARNING: GPU not available, using CPU (will be slower)")
+                print("WARNING: GPU not available, using CPU (will be MUCH slower)")
+                print("         Consider reducing epochs or using a pre-trained model")
         except:
             device = 'cpu'
             print("WARNING: PyTorch not available, using CPU")
@@ -55,18 +56,43 @@ def train_hand_keypoints_model(output_dir="models", use_gpu=True):
         device = 'cpu'
     
     print(f"Using device: {device}")
+    
+    # Optimize training parameters based on device
+    if device == 'cpu':
+        # CPU training is very slow - reduce epochs significantly
+        recommended_epochs = 20  # Much faster, still gets good results
+        batch_size = 8
+        print()
+        print("⚠️  CPU TRAINING DETECTED - Using optimized settings:")
+        print(f"   Epochs: {recommended_epochs} (instead of 100)")
+        print(f"   Batch size: {batch_size}")
+        print(f"   Estimated time: ~{recommended_epochs * 78 / 60:.1f} hours")
+        print()
+        print("   Options:")
+        print("   1. Continue with reduced epochs (recommended)")
+        print("   2. Stop and use pre-trained model if available")
+        print("   3. Train on a machine with GPU")
+        print()
+    else:
+        recommended_epochs = 100  # Full training on GPU
+        batch_size = 16
+    
     print()
     
     # Train the model (YOLO saves to runs/pose/hand_keypoints by default)
     results = model.train(
         data="hand-keypoints.yaml",  # Dataset YAML (auto-downloads if not found)
-        epochs=100,
+        epochs=recommended_epochs,
         imgsz=640,
-        batch=16 if device != 'cpu' else 8,  # Smaller batch for CPU
+        batch=batch_size,
         device=device,
         project="runs/pose",
         name="hand_keypoints",
-        exist_ok=True
+        exist_ok=True,
+        patience=10,  # Early stopping if no improvement
+        workers=4 if device == 'cpu' else 8,  # Fewer workers on CPU
+        cache=False,  # Don't cache images on CPU (saves memory)
+        amp=device != 'cpu'  # Mixed precision only on GPU
     )
     
     # Copy best model to models/ directory for git
