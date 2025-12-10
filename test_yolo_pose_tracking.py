@@ -182,57 +182,6 @@ class YOLOPoseTracker:
         
         return None
     
-    def detect_hand_gesture_from_pose(self, keypoints):
-        """
-        Detect hand gestures from pose keypoints
-        Uses wrist position relative to body to infer gestures
-        
-        Args:
-            keypoints: YOLO keypoints array
-            
-        Returns:
-            Gesture name or None
-        """
-        # Get keypoints
-        left_wrist = keypoints[9]  # [x, y, confidence]
-        right_wrist = keypoints[10]
-        left_shoulder = keypoints[5]
-        right_shoulder = keypoints[6]
-        nose = keypoints[0]
-        
-        gestures = []
-        
-        # Check left hand
-        if left_wrist[2] > 0.5:  # Visible
-            # Calculate position relative to body
-            wrist_y_relative = left_wrist[1] - left_shoulder[1]
-            wrist_x_relative = left_wrist[0] - left_shoulder[0]
-            
-            # STOP: Both hands raised high
-            if wrist_y_relative < -50:  # Wrist well above shoulder
-                gestures.append('stop')
-            # Pointing gestures based on position
-            elif abs(wrist_x_relative) > 50:  # Hand extended to side
-                if wrist_x_relative < -30:  # Left side
-                    gestures.append('turn_left')
-                elif wrist_x_relative > 30:  # Right side
-                    gestures.append('turn_right')
-        
-        # Check right hand
-        if right_wrist[2] > 0.5:  # Visible
-            wrist_y_relative = right_wrist[1] - right_shoulder[1]
-            wrist_x_relative = right_wrist[0] - right_shoulder[0]
-            
-            if wrist_y_relative < -50:
-                gestures.append('stop')
-            elif abs(wrist_x_relative) > 50:
-                if wrist_x_relative < -30:
-                    gestures.append('turn_left')
-                elif wrist_x_relative > 30:
-                    gestures.append('turn_right')
-        
-        return gestures[0] if gestures else None
-    
     def detect(self, frame):
         """
         Run YOLO pose detection with tracking
@@ -241,7 +190,9 @@ class YOLOPoseTracker:
             frame: RGB frame
             
         Returns:
-            dict with detection results
+            tuple: (detection_results_dict, yolo_result_object)
+            - detection_results_dict: dict with detection results
+            - yolo_result_object: YOLO result object (for default overlay)
         """
         results = {
             'objects': [],
@@ -261,9 +212,12 @@ class YOLOPoseTracker:
             show=False  # Don't show results automatically
         )
         
+        yolo_result = None
+        
         # Process results
         if yolo_results and len(yolo_results) > 0:
             result = yolo_results[0]
+            yolo_result = result  # Store for overlay
             
             # Get boxes (detections)
             if result.boxes is not None:
@@ -303,12 +257,12 @@ class YOLOPoseTracker:
                     
                     # Process person pose if available
                     if class_name == 'person' and keypoints is not None:
-                        # Calculate arm angles
+                        # Calculate arm angles (60-90 degrees raised to side)
                         left_arm_angle = self.calculate_arm_angle(keypoints, 'left')
                         right_arm_angle = self.calculate_arm_angle(keypoints, 'right')
                         
-                        # Detect gesture
-                        gesture = self.detect_hand_gesture_from_pose(keypoints)
+                        # Note: Hand gestures are handled separately in hand_gesture_controller.py
+                        # This pose tracker only detects arm angles for autonomous following
                         
                         # Calculate person angle
                         person_center_x = (x1 + x2) / 2
@@ -323,7 +277,6 @@ class YOLOPoseTracker:
                             'left_arm_angle': left_arm_angle,
                             'right_arm_raised': right_arm_angle is not None,
                             'right_arm_angle': right_arm_angle,
-                            'gesture': gesture,
                             'angle': angle,
                             'is_centered': abs(offset) < 30
                         }
@@ -343,7 +296,7 @@ class YOLOPoseTracker:
         self.last_frame_time = current_time
         results['fps'] = self.fps
         
-        return results
+        return results, yolo_result
     
     def update(self):
         """
@@ -364,7 +317,7 @@ class YOLOPoseTracker:
             }
         """
         frame = self.get_frame()
-        results = self.detect(frame)
+        results, _ = self.detect(frame)  # Ignore yolo_result for update() method
         
         # Find the best person (first person with pose data, or first person)
         best_person = None
@@ -381,8 +334,7 @@ class YOLOPoseTracker:
                 'is_centered': False,
                 'arm_raised': False,
                 'arm_confidence': 0.0,
-                'track_id': None,
-                'gesture': None
+                'track_id': None
             }
         
         # Extract data from pose
@@ -396,8 +348,7 @@ class YOLOPoseTracker:
             'is_centered': best_person.get('is_centered', False),
             'arm_raised': arm_raised,
             'arm_confidence': arm_confidence,
-            'track_id': best_person.get('track_id'),
-            'gesture': best_person.get('gesture')
+            'track_id': best_person.get('track_id')
         }
     
     def stop(self):
@@ -408,81 +359,53 @@ class YOLOPoseTracker:
         print("[YOLOPoseTracker] Stopped")
 
 
-def draw_detections(frame, results):
+def draw_detections(frame, yolo_result, results):
     """
-    Draw detection results on frame
+    Draw detection results using YOLO's default overlay + custom arm angle info
     
     Args:
-        frame: RGB frame (will be converted to BGR for drawing)
-        results: Detection results dict
+        frame: RGB frame
+        yolo_result: YOLO result object (for default overlay)
+        results: Detection results dict (for arm angle info)
+    
+    Returns:
+        Annotated frame in BGR format
     """
+    # Use YOLO's built-in plot() method for default overlays
+    # This gives us the standard YOLO visualization with keypoints, skeleton, etc.
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    annotated_frame = yolo_result.plot()  # YOLO's default overlay
     
-    # Draw all detections
-    for obj in results['objects']:
-        x1, y1, x2, y2 = obj['box']
-        class_name = obj['class_name']
-        confidence = obj['confidence']
-        track_id = obj.get('track_id')
-        
-        # Color: green for person, blue for others
-        color = (0, 255, 0) if class_name == 'person' else (255, 0, 0)
-        
-        # Draw bounding box (thin)
-        cv2.rectangle(frame_bgr, (x1, y1), (x2, y2), color, 1)
-        
-        # Draw label (small font)
-        label = f"{class_name}"
-        if track_id is not None:
-            label += f" ID:{track_id}"
-        label += f" {confidence:.2f}"
-        cv2.putText(frame_bgr, label, (x1, y1 - 5),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1)
-        
-        # Draw keypoints if available (pose)
-        if obj.get('keypoints') is not None:
-            keypoints = obj['keypoints']
-            for kpt in keypoints:
-                x, y, conf = int(kpt[0]), int(kpt[1]), kpt[2]
-                if conf > 0.5:  # Only draw visible keypoints
-                    cv2.circle(frame_bgr, (x, y), 2, (0, 255, 255), -1)
-    
-    # Draw pose information
+    # Add custom arm angle information on top
     y_offset = 30
-    font_scale = 0.4
-    thickness = 1
+    font_scale = 0.5
+    thickness = 2
     
     for pose in results['poses']:
         if pose['left_arm_raised']:
             text = f"L Arm: {pose['left_arm_angle']:.0f}°"
-            cv2.putText(frame_bgr, text, (10, y_offset),
+            cv2.putText(annotated_frame, text, (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
-            y_offset += 20
+            y_offset += 25
         
         if pose['right_arm_raised']:
             text = f"R Arm: {pose['right_arm_angle']:.0f}°"
-            cv2.putText(frame_bgr, text, (10, y_offset),
+            cv2.putText(annotated_frame, text, (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
-            y_offset += 20
-        
-        if pose.get('gesture'):
-            text = f"Gesture: {pose['gesture'].upper()}"
-            cv2.putText(frame_bgr, text, (10, y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 0, 255), thickness)
-            y_offset += 20
+            y_offset += 25
     
     # Draw FPS
     fps_text = f'FPS: {results["fps"]:.1f}'
-    cv2.putText(frame_bgr, fps_text, (frame_bgr.shape[1] - 150, 30),
-               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+    cv2.putText(annotated_frame, fps_text, (annotated_frame.shape[1] - 150, 30),
+               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     
     # Draw tracking info
     if results['tracked_persons']:
         track_text = f"Tracking: {len(results['tracked_persons'])} person(s)"
-        cv2.putText(frame_bgr, track_text, (10, frame_bgr.shape[0] - 20),
-                   cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 0), thickness)
+        cv2.putText(annotated_frame, track_text, (10, annotated_frame.shape[0] - 20),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
     
-    return frame_bgr
+    return annotated_frame
 
 
 def main():
@@ -528,11 +451,15 @@ def main():
             # Get frame
             frame = tracker.get_frame()
             
-            # Run detection
-            results = tracker.detect(frame)
+            # Run detection (returns both results dict and yolo_result object)
+            results, yolo_result = tracker.detect(frame)
             
-            # Draw detections
-            frame_bgr = draw_detections(frame, results)
+            # Draw detections using YOLO's default overlay + custom arm angle info
+            if yolo_result is not None:
+                frame_bgr = draw_detections(frame, yolo_result, results)
+            else:
+                # Fallback if no detections
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
             # Display frame
             cv2.imshow('YOLO Pose Tracking - Press q to quit', frame_bgr)
@@ -550,8 +477,6 @@ def main():
                         output += f"L:{pose['left_arm_angle']:.0f}° "
                     if pose['right_arm_raised']:
                         output += f"R:{pose['right_arm_angle']:.0f}° "
-                    if pose.get('gesture'):
-                        output += f"Gesture:{pose['gesture']} "
                     print(output)
     
     except KeyboardInterrupt:
