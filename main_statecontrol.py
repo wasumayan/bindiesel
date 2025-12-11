@@ -49,7 +49,46 @@ class BinDieselSystem:
         self.visual_update_interval = config.VISUAL_UPDATE_INTERVAL  # Use configurable update interval
         self.running = True
         self._wake_word_stopped = False  # Track if wake word detector has been stopped
-    
+
+        # Initialize motor controller
+        log_info(self.logger, "Initializing motor controller...")
+        try:
+            self.motor = MotorController(
+                pwm_pin=config.MOTOR_PWM_PIN,
+                frequency=config.PWM_FREQUENCY
+            )
+            self.motor.stop()  
+            log_info(self.logger, "Motor controller initialized successfully")
+        except Exception as e:
+            log_error(self.logger, e, "Failed to initialize motor controller")
+            self.cleanup()
+            sys.exit(1)
+        
+        # Initialize servo controller
+        log_info(self.logger, "Initializing servo controller...")
+        try:
+            self.servo = ServoController(
+                pwm_pin=config.SERVO_PWM_PIN,
+                frequency=config.PWM_FREQUENCY,
+                center_duty=config.SERVO_CENTER,
+                left_max_duty=config.SERVO_LEFT_MAX,
+                right_max_duty=config.SERVO_RIGHT_MAX
+            )
+            self.servo.center()
+            log_info(self.logger, "Servo controller initialized successfully")
+        except Exception as e:
+            log_error(self.logger, e, "Failed to initialize servo controller")
+            self.cleanup()
+            sys.exit(1)
+        
+        # Initialize TOF sensor
+        log_info(self.logger, "Initializing TOF sensor...")
+        try:
+            self.tof = ToFSensor()
+            log_info(self.logger, "TOF sensor initialized successfully")
+        except Exception as e:
+            log_warning(self.logger, f"Failed to initialize TOF sensor: {e}", "Continuing without TOF sensor (safety feature disabled)")
+            self.tof = None    
        
         # Initialize wake word detector
         log_info(self.logger, "Initializing wake word detector...")
@@ -107,43 +146,6 @@ class BinDieselSystem:
             log_warning(self.logger, f"Failed to initialize YOLO object detection: {e}", "Home marker detection will not work")
             self.home_marker_model = None
         
-        # Initialize motor controller
-        log_info(self.logger, "Initializing motor controller...")
-        try:
-            self.motor = MotorController(
-                pwm_pin=config.MOTOR_PWM_PIN,
-                frequency=config.PWM_FREQUENCY
-            )
-            log_info(self.logger, "Motor controller initialized successfully")
-        except Exception as e:
-            log_error(self.logger, e, "Failed to initialize motor controller")
-            self.cleanup()
-            sys.exit(1)
-        
-        # Initialize servo controller
-        log_info(self.logger, "Initializing servo controller...")
-        try:
-            self.servo = ServoController(
-                pwm_pin=config.SERVO_PWM_PIN,
-                frequency=config.PWM_FREQUENCY,
-                center_duty=config.SERVO_CENTER,
-                left_max_duty=config.SERVO_LEFT_MAX,
-                right_max_duty=config.SERVO_RIGHT_MAX
-            )
-            log_info(self.logger, "Servo controller initialized successfully")
-        except Exception as e:
-            log_error(self.logger, e, "Failed to initialize servo controller")
-            self.cleanup()
-            sys.exit(1)
-        
-        # Initialize TOF sensor
-        log_info(self.logger, "Initializing TOF sensor...")
-        try:
-            self.tof = ToFSensor()
-            log_info(self.logger, "TOF sensor initialized successfully")
-        except Exception as e:
-            log_warning(self.logger, f"Failed to initialize TOF sensor: {e}", "Continuing without TOF sensor (safety feature disabled)")
-            self.tof = None
         
         # Tracking state - store target track_id to ensure we follow the same person
         self.target_track_id = None  # Track ID of the person we're following
