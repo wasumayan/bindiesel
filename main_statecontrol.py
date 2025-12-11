@@ -187,11 +187,11 @@ class BinDieselSystem:
         """Transition to a new state with highlighted logging"""
         current_state = self.sm.get_state()
         if current_state != new_state:
-            log_info(self.logger, "=" * 70)
-            log_info(self.logger, "=" * 70)
+            log_info(self.logger, "*" * 70)
+            log_info(self.logger, "*" * 70)
             log_info(self.logger, f"STATE TRANSITION: {current_state.name} -> {new_state.name}")
-            log_info(self.logger, "=" * 70)
-            log_info(self.logger, "=" * 70)
+            log_info(self.logger, "*" * 70)
+            log_info(self.logger, "*" * 70)
         self.sm.transition_to(new_state)
         
     ########################################################################################################################## handle_idle_state
@@ -267,7 +267,6 @@ class BinDieselSystem:
                           f"User tracking confirmed (Track ID: {self.target_track_id}), starting to follow",
                           config.DEBUG_MODE)
             self._transition_to(State.FOLLOWING_USER)
-            return
         
     ################################################################################################################ handle_following_user_state
     ############################################################################################################################################
@@ -276,8 +275,8 @@ class BinDieselSystem:
         """Handle FOLLOWING_USER state - moving toward user"""
 
         if not self.sm.old_state == self.sm.state:
-            self.motor.forward(config.MOTOR_FAST) 
-            self.sm.transition_to(State.TRACKING_USER)
+            self.motor.forward(config.MOTOR_MEDIUM) 
+            self.sm.old_state = self.sm.state
             conditional_log(self.logger, 'info', f"Motor forward start at speed {config.MOTOR_FAST}", config.DEBUG_MODE)
         
         # Update visual detection (use cached if available)
@@ -480,9 +479,6 @@ class BinDieselSystem:
                 # Route to appropriate handler based on state
                 if state == State.IDLE:
                     self.handle_idle_state()
-                
-                elif state == State.ACTIVE:
-                    self.handle_active_state()
                 
                 elif state == State.TRACKING_USER:
                     self.handle_tracking_user_state()
