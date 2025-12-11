@@ -170,6 +170,8 @@ class BinDieselSystem:
         self.cached_visual_timestamp = 0
         self.frame_skip_counter = 0  # Counter for frame skipping
         # self.current_manual_command = None  # Current active manual command
+
+        self.sleeptimer = 0.3 # for re-finding user 
         
         # Debug mode
         self.debug_mode = config.DEBUG_MODE
@@ -339,7 +341,9 @@ class BinDieselSystem:
             self.servo.set_angle(self.last_error_angle * -2)
             self.last_error_angle = self.last_error_angle * -1  # Flip for next time
             self.target_track_id = None  # Clear target track_id
-            time.sleep(0.5)
+            time.sleep(self.sleeptimer)
+            if self.sleeptimer < 2.0:
+                self.sleeptimer += 0.1
 
             return
         
@@ -347,6 +351,7 @@ class BinDieselSystem:
         
         # Calculate steering based on angle 
         if result['angle'] is not None:
+            self.sleeptimer = 0.3  # reset sleep timer
             angle = result['angle']    
             conditional_log(self.logger, 'debug', f"Person angle: {angle:.1f}°, centered: {result['is_centered']}",
                           self.debug_mode and config.DEBUG_VISUAL)
