@@ -263,6 +263,22 @@ class HomeMarkerTracker:
         
         # Verify color match (sanity check)
         color_match = check_color_match_red(frame_bgr, (x, y, x + w, y + h))
+
+        # If color match drops, count misses and only give up after threshold
+        if color_match < 0.20:
+            self.lost_count += 1
+            if self.lost_count >= self.lost_threshold:
+                log_info(self.logger, "Lost color match, returning to scan mode")
+                self.is_locked = False
+                self.is_scanning = True
+                self.tracker = None
+                if self.motor:
+                    self.motor.stop()
+                if self.servo:
+                    self.servo.center()
+                return None
+        else:
+            self.lost_count = 0
         
         # Calculate steering offset
         frame_center_x = config.CAMERA_WIDTH // 2
@@ -405,6 +421,10 @@ class HomeMarkerTracker:
                 
                 # Display
                 cv2.imshow('Home Marker Tracker Test', annotated)
+                
+                # Lightweight per-frame diagnostics (every 10 frames)
+                if self.frame_count % 10 == 0:
+                    log_info(self.logger, f"STATE: scanning={self.is_scanning} locked={self.is_locked} tracker={'yes' if self.tracker else 'no'} last_w={self.last_detection['width'] if self.last_detection else 'N/A'}")
                 
                 # Handle keyboard input
                 key = cv2.waitKey(1) & 0xFF
