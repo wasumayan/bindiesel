@@ -361,7 +361,7 @@ class BinDieselSystem:
             steering_angle = max(-45.0, min(45.0, angle))  # Clamp to servo range
             self.servo.set_angle(steering_angle)
             self.last_error_angle = steering_angle 
-            time.sleep(0.25)
+            time.sleep(0.22)
             self.servo.center()
             
             # Adjust speed based on how centered user is
@@ -394,7 +394,7 @@ class BinDieselSystem:
         # Wait for fixed amount of time for trash placement, then go to HOME
         conditional_log(self.logger, 'info', "STOPPED: Waiting for trash collection", config.DEBUG_MODE)
 
-        wait_time = 10.0  # Wait 10 seconds for trash placement
+        wait_time = 8.0  # Wait 8 seconds for trash placement
         if self.sm.get_time_in_state() > wait_time:
             log_info(self.logger, "Trash collection complete, returning to home")
             self._transition_to(State.HOME)
