@@ -50,7 +50,26 @@ class BinDieselSystem:
         self.running = True
         self._wake_word_stopped = False  # Track if wake word detector has been stopped
 
-        # Initialize motor controller
+        
+        # Initialize servo controller
+        log_info(self.logger, "Initializing servo controller...")
+        try:
+            self.servo = ServoController(
+                pwm_pin=config.SERVO_PWM_PIN,
+                frequency=config.PWM_FREQUENCY,
+                center_duty=config.SERVO_CENTER,
+                left_max_duty=config.SERVO_LEFT_MAX,
+                right_max_duty=config.SERVO_RIGHT_MAX
+            )
+            
+            log_info(self.logger, "Servo controller initialized successfully")
+        except Exception as e:
+            log_error(self.logger, e, "Failed to initialize servo controller")
+            self.cleanup()
+            sys.exit(1)
+
+
+            # Initialize motor controller
         log_info(self.logger, "Initializing motor controller...")
         try:
             self.motor = MotorController(
@@ -64,28 +83,8 @@ class BinDieselSystem:
             self.cleanup()
             sys.exit(1)
         
-        # Initialize servo controller
-        log_info(self.logger, "Initializing servo controller...")
-        try:
-            self.servo = ServoController(
-                pwm_pin=config.SERVO_PWM_PIN,
-                frequency=config.PWM_FREQUENCY,
-                center_duty=config.SERVO_CENTER,
-                left_max_duty=config.SERVO_LEFT_MAX,
-                right_max_duty=config.SERVO_RIGHT_MAX
-            )
-            self.servo.center()
-            time.sleep(3.0)
-            self.servo.set_angle(-30)
-            time.sleep(3.0)
-            self.servo.center()
-            time.sleep(3.0)
-
-            log_info(self.logger, "Servo controller initialized successfully")
-        except Exception as e:
-            log_error(self.logger, e, "Failed to initialize servo controller")
-            self.cleanup()
-            sys.exit(1)
+        self.servo.center()
+        time.sleep(3.0)
         
         # Initialize TOF sensor
         log_info(self.logger, "Initializing TOF sensor...")
