@@ -423,7 +423,7 @@ class BinDieselSystem:
             conditional_log(self.logger, 'info', 
                           "User lost, stopping and searching...",
                           config.DEBUG_MODE)
-            self.servo.center()
+            self.servo.stop()
     
     ################################################################################################################ handle_following_user_state
     ########################################################################################################################## 
