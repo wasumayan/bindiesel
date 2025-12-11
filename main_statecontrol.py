@@ -423,9 +423,10 @@ class BinDieselSystem:
             self.motor.forward(1.1)  # Stop before turning
             # Turn left max (or right max - you can change this)
             self.servo.turn_left(1.0)  # Max left turn
+            self.motor.forward(config.MOTOR_FAST)
             time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
-            self.motor.forward(config.MOTOR_SLOW)
             self.servo.center()  # Center steering
+            self.motor.stop
             self.return_turn_complete = True
             log_info(self.logger, "Turn complete, scanning for red square object...")
             return  # Exit early to allow turn to complete
