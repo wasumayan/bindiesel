@@ -26,14 +26,14 @@ MOTOR_STOP = 100.0      # 0% duty cycle = stopped
 MOTOR_MAX = 93.7       # 100% duty cycle = maximum speed 93.7 
 # Motor Speed Configuration
 FOLLOW_SPEED = 1.0  # Speed when following user (0.0-1.0)
-MOTOR_SLOW = 1.02  # Slow speed for turning
-MOTOR_MEDIUM = 1.01  # Medium speed
+MOTOR_SLOW = 1.01  # Slow speed for turning
+MOTOR_MEDIUM = 1.008  # Medium speed
 MOTOR_FAST = 1.0  # Fast speed
 
 # Servo Control Values (PWM duty cycle percentages)
 PWM_FREQUENCY_SERVO = 50 #HZ
 
-SERVO_CENTER = 92.000
+SERVO_CENTER = 93.000
 SERVO_LEFT_MAX = 95.422 
 SERVO_RIGHT_MAX = 89.318 
 
