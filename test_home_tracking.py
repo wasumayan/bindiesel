@@ -185,6 +185,13 @@ class HomeMarkerTracker:
         
         # Servo state tracking (to reduce jitter from redundant center commands)
         self.last_servo_angle = 0.0  # Track last commanded angle
+        
+        # PID steering control (to handle servo latency)
+        self.pid_kp = 0.8   # Proportional gain
+        self.pid_ki = 0.1   # Integral gain
+        self.pid_kd = 0.3   # Derivative gain
+        self.pid_error_integral = 0.0  # Accumulated error over time
+        self.pid_last_error = 0.0  # Previous error for derivative calculation
 
         self.run_flag = False
         self.approach_flag = False
@@ -194,6 +201,11 @@ class HomeMarkerTracker:
         if self.servo and self.last_servo_angle != 0.0:
             self.servo.center()
             self.last_servo_angle = 0.0
+    
+    def reset_pid_steering(self):
+        """Reset PID state to avoid integral windup and stale errors"""
+        self.pid_error_integral = 0.0
+        self.pid_last_error = 0.0
     #####################################################################################################
     def get_frame(self):
         """Get next frame from camera or dummy source"""
@@ -246,6 +258,7 @@ class HomeMarkerTracker:
                 self.is_scanning = False
                 self.last_detection = marker
                 self.lost_count = 0
+                self.reset_pid_steering()  # Reset PID on lock transition
                 log_info(self.logger, f"LOCKED: conf={marker['confidence']:.2f}, color={marker['color_match']:.1%}")
                 return marker
         else:
@@ -271,6 +284,7 @@ class HomeMarkerTracker:
             self.is_locked = False
             self.is_scanning = True
             self.tracker = None
+            self.reset_pid_steering()  # Reset PID on unlock transition
             
             self.motor.stop()
             self.safe_center_servo()
@@ -292,6 +306,7 @@ class HomeMarkerTracker:
                 self.is_locked = False
                 self.is_scanning = True
                 self.tracker = None
+                self.reset_pid_steering()  # Reset PID on unlock transition
                 
                 self.motor.stop()
                 self.safe_center_servo()
@@ -303,8 +318,18 @@ class HomeMarkerTracker:
         frame_center_x = config.CAMERA_WIDTH // 2
         offset = center_x - frame_center_x
         
-        # Compute steering angle (proportional to offset)
-        steering_angle = (offset / frame_center_x) * 45.0  # Map to [-45, 45] degrees
+        # PID steering control to handle servo latency
+        error = offset  # Error term: deviation from center
+        self.pid_error_integral += error  # Accumulate error over time
+        pid_error_derivative = error - self.pid_last_error  # Rate of change
+        self.pid_last_error = error  # Store for next iteration
+        
+        # Calculate PID output (steering angle)
+        steering_angle = (
+            self.pid_kp * error +
+            self.pid_ki * self.pid_error_integral +
+            self.pid_kd * pid_error_derivative
+        )
         steering_angle = max(-45.0, min(45.0, steering_angle))
         self.servo.set_angle(steering_angle)
         self.last_servo_angle = steering_angle  # Track for centering check

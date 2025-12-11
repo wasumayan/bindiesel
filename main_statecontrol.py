@@ -150,6 +150,13 @@ class BinDieselSystem:
         # Tracking state - store target track_id to ensure we follow the same person
         self.target_track_id = None  # Track ID of the person we're following
         
+        # PID steering control (to handle servo latency)
+        self.pid_kp = 0.8   # Proportional gain
+        self.pid_ki = 0.0   # Integral gain
+        self.pid_kd = 0.0   # Derivative gain
+        self.pid_error_integral = 0.0  # Accumulated error over time
+        self.pid_last_error = 0.0  # Previous error for derivative calculation
+        
         # Performance optimizations
         self.frame_cache = FrameCache(max_age=0.05)  # Cache frames for 50ms
         self.performance_monitor = PerformanceMonitor()
@@ -195,6 +202,12 @@ class BinDieselSystem:
             log_info(self.logger, "*" * 70)
             log_info(self.logger, "*" * 70)
         self.sm.transition_to(new_state)
+        self.reset_pid_steering()  # Reset PID on any state transition
+    
+    def reset_pid_steering(self):
+        """Reset PID state to avoid integral windup and stale errors"""
+        self.pid_error_integral = 0.0
+        self.pid_last_error = 0.0
         
     ########################################################################################################################## handle_idle_state
     ##############################################################################################################################
@@ -335,7 +348,7 @@ class BinDieselSystem:
             self._transition_to(State.STOPPED)
             return
         
-        # Calculate steering based on angle
+        # Calculate steering based on angle using PID control
         if result['angle'] is not None:
             angle = result['angle']
             
@@ -343,9 +356,20 @@ class BinDieselSystem:
                           f"Person angle: {angle:.1f}°, centered: {result['is_centered']}",
                           self.debug_mode and config.DEBUG_VISUAL)
 
-            steering_position = (angle / 45.0) * config.ANGLE_TO_STEERING_GAIN
-            steering_position = max(-1.0, min(1.0, steering_position))         
-            self.servo.set_angle(angle)
+            # PID steering control to handle servo latency
+            error = angle  # Error term: deviation from center (0°)
+            self.pid_error_integral += error  # Accumulate error over time
+            pid_error_derivative = error - self.pid_last_error  # Rate of change
+            self.pid_last_error = error  # Store for next iteration
+            
+            # Calculate PID output (steering angle)
+            steering_angle = (
+                self.pid_kp * error +
+                self.pid_ki * self.pid_error_integral +
+                self.pid_kd * pid_error_derivative
+            )
+            steering_angle = max(-45.0, min(45.0, steering_angle))
+            self.servo.set_angle(steering_angle)
             
             # Adjust speed based on how centered user is
             if result['is_centered']:
