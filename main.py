@@ -520,10 +520,10 @@ class BinDieselSystem:
                 
         else:
             # No angle data - stop
-            self.motor.stop()
+            self.motor.forward(config.MOTOR_SLOW)
             self.servo.center()
-            self._transition_to(State.TRACKING_USER)
-            log_info(self.logger, "No angle data - returning to TRACKING_USER state")
+            # self._transition_to(State.TRACKING_USER)
+            log_info(self.logger, "No angle data")
     
     def handle_stopped_state(self):
         """Handle STOPPED state - at target distance, waiting for trash collection"""
