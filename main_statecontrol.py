@@ -75,11 +75,11 @@ class BinDieselSystem:
                 right_max_duty=config.SERVO_RIGHT_MAX
             )
             self.servo.center()
-            time.sleep(1.0)
+            time.sleep(3.0)
             self.servo.set_angle(-30)
-            time.sleep(1.0)
+            time.sleep(3.0)
             self.servo.center()
-            time.sleep(1.0)
+            time.sleep(3.0)
 
             log_info(self.logger, "Servo controller initialized successfully")
         except Exception as e:
