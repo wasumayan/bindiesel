@@ -56,13 +56,13 @@ class CentroidTracker:
         if not self.yolo_model:
             return False, self.last_bbox
         
-        # Re-detect marker in frame (use relaxed thresholds for lock mode reliability)
+        # Re-detect marker in frame (balanced thresholds for lock mode)
         marker = detect_red_box(
             self.yolo_model,
             frame,
             confidence_threshold=0.20,  # Lowered for lock mode reliability
-            color_threshold=0.12,       # Lowered to catch darkened reds
-            square_aspect_ratio_tolerance=0.60  # Tolerant of irregular shapes
+            color_threshold=0.18,       # Slightly loosened for lock mode
+            square_aspect_ratio_tolerance=0.55  # Moderate tolerance for shapes
         )
         
         if marker['detected']:
@@ -160,10 +160,10 @@ class HomeMarkerTracker:
         # Performance tracking
         self.motor_enabled = True
         
-        # Detection parameters (loosened for shadowed red cube)
+        # Detection parameters (balanced for shadowed red cube)
         self.confidence_threshold = 0.25
-        self.color_threshold = 0.15  # Lowered from 0.25 to catch darker reds
-        self.square_tolerance = 0.60  # Raised from 0.45 to accept irregular cube shapes
+        self.color_threshold = 0.20  # Slightly loosened from 0.25
+        self.square_tolerance = 0.55  # Moderate tolerance for cube shapes
         self.stop_distance = config.HOME_MARKER_STOP_DISTANCE
         self.slow_threshold = config.HOME_MARKER_SLOW_DISTANCE
         self.center_tolerance = config.CAMERA_WIDTH * 0.1
