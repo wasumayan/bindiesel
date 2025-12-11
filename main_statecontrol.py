@@ -393,6 +393,7 @@ class BinDieselSystem:
         """Handle STOPPED state - at target distance, waiting for trash collection"""
         # Wait for fixed amount of time for trash placement, then go to HOME
         conditional_log(self.logger, 'info', "STOPPED: Waiting for trash collection", config.DEBUG_MODE)
+        self.sleeptimer = config.SLEEP_TIMER  # reset sleep timer
 
         wait_time = 8.0  # Wait 8 seconds for trash placement
         if self.sm.get_time_in_state() > wait_time:
@@ -479,8 +480,14 @@ class BinDieselSystem:
                 # Marker not found - search by turning slowly
                 log_info(self.logger, "Home marker not found, searching...")
                 # Turn slowly while searching
-                self.servo.turn_left(0.3)  # Small left turn
-                self.motor.forward(config.MOTOR_SLOW )  # Very slow forward
+                
+                self.motor.forward(config.MOTOR_SUPER_SLOW)
+                self.servo.set_angle(-15.0)  # Slight left turn
+                self.last_error_angle = self.last_error_angle * -1  # Flip for next time
+                self.target_track_id = None  # Clear target track_id
+                time.sleep(self.sleeptimer)
+                if self.sleeptimer < 2.0:
+                    self.sleeptimer += 0.1
                 
         except Exception as e:
             log_error(self.logger, e, "Error in return to home detection")
