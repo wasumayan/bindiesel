@@ -29,6 +29,7 @@ FOLLOW_SPEED = 1.0  # Speed when following user (0.0-1.0)
 MOTOR_SLOW = 1.01  # Slow speed for turning
 MOTOR_MEDIUM = 1.008  # Medium speed
 MOTOR_FAST = 1.0  # Fast speed
+MOTOR_TURN = 0.85
 
 # Servo Control Values (PWM duty cycle percentages)
 PWM_FREQUENCY_SERVO = 50 #HZ
@@ -105,7 +106,7 @@ HOME_MARKER_CONFIDENCE = 0.3  # Minimum confidence for home marker detection
 HOME_MARKER_COLOR_THRESHOLD = 0.3  # Minimum percentage of object that must match color (0.0-1.0)
 HOME_MARKER_STOP_DISTANCE = 100  # Stop when marker is this many pixels wide (closer = larger)
 HOME_MARKER_SLOW_DISTANCE = 50
-TURN_180_DURATION = 5.0  # Seconds to turn 180 degrees
+TURN_180_DURATION = 6.5  # Seconds to turn 180 degrees
 
 # Performance Configuration
 ENABLE_FRAME_CACHING = True  # Cache frames to reduce redundant captures
