@@ -393,6 +393,7 @@ class BinDieselSystem:
             # Turn left max (or right max - you can change this)
             self.servo.turn_left(1.0)  # Max left turn
             time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
+            self.motor.forward(config.MOTOR_SLOW)
             self.servo.center()  # Center steering
             self.return_turn_complete = True
             log_info(self.logger, "Turn complete, scanning for red square object...")
@@ -407,7 +408,7 @@ class BinDieselSystem:
                 frame,
                 confidence_threshold=config.HOME_MARKER_CONFIDENCE,
                 color_threshold=config.HOME_MARKER_COLOR_THRESHOLD,
-                square_aspect_ratio_tolerance=0.3  # 30% tolerance for square shape
+                square_aspect_ratio_tolerance=0.4  # 40% tolerance for square shape
             )
             
             if marker['detected']:
