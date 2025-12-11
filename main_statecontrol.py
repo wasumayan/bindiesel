@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import modules
 import config
+import cv2
 from state_machine import StateMachine, State
 from wake_word_detector import WakeWordDetector
 from test_yolo_pose_tracking import YOLOPoseTracker
@@ -413,6 +414,8 @@ class BinDieselSystem:
         try:
             frame = self.visual.get_frame()
             # Use home_marker_detector module (hardcoded for red square)
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+           
             marker = detect_red_box(
                 self.home_marker_model,
                 frame,
@@ -439,9 +442,14 @@ class BinDieselSystem:
                 if marker_width >= config.HOME_MARKER_STOP_DISTANCE:
                     # Close enough - stop!
                     log_info(self.logger, "Reached home marker! Stopping.")
+
+                    self.motor.stop()  # Stop before turning
+                    self.servo.turn_left(1.0)  # Max left turn
+                    self.motor.forward(config.MOTOR_TURN)
+                    time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
+                    self.servo.center()  # Center steering
                     self.motor.stop()
-                    self.servo.center()
-                    # Clean up return state
+
                     if hasattr(self, 'return_turn_complete'):
                         delattr(self, 'return_turn_complete')
                     self._transition_to(State.IDLE)
