@@ -63,6 +63,9 @@ class BinDieselSystem:
             )
             
             log_info(self.logger, "Servo controller initialized successfully")
+
+            self.servo.last_servo_angle = 0.0  # Track that servo is centered
+
         except Exception as e:
             log_error(self.logger, e, "Failed to initialize servo controller")
             self.cleanup()
@@ -155,16 +158,8 @@ class BinDieselSystem:
         
         # Tracking state - store target track_id to ensure we follow the same person
         self.target_track_id = None  # Track ID of the person we're following
-        
-        # PID steering control (to handle servo latency)
-        self.pid_kp = 0.8   # Proportional gain
-        self.pid_ki = 0.1   # Integral gain
-        self.pid_kd = 0.3   # Derivative gain
-        self.pid_error_integral = 0.0  # Accumulated error over time
-        self.pid_last_error = None  # Previous error for derivative calculation (None = first frame, skip derivative)
-        
-        # Servo state tracking (to reduce jitter from redundant center commands)
-        self.last_servo_angle = None  # Track last commanded servo angle
+    
+        self.last_error_angle = 0.0  # Last error angle for lost user recovery
         
         # Performance optimizations
         self.frame_cache = FrameCache(max_age=0.05)  # Cache frames for 50ms
@@ -211,15 +206,9 @@ class BinDieselSystem:
             log_info(self.logger, "*" * 70)
             log_info(self.logger, "*" * 70)
         self.sm.transition_to(new_state)
-        self.reset_pid_steering()  # Reset PID on any state transition
-    
-    def reset_pid_steering(self):
-        """Reset PID state to avoid integral windup and stale errors"""
-        self.pid_error_integral = 0.0
-        self.pid_last_error = None  # Set to None so derivative is skipped on first frame
-    
+
     def safe_center_servo(self):
-        """Center servo only if it's not already centered (reduces jitter)"""
+        """Center servo only if it's not already centered"""
         if self.last_servo_angle != 0.0:
             self.servo.center()
             self.last_servo_angle = 0.0
@@ -343,12 +332,13 @@ class BinDieselSystem:
         
         if not result['person_detected']:
             # User lost - stop car and revert to tracking state to search for user
-            log_info(self.logger, "User lost during following, stopping and searching...")
-            self.motor.stop()
-            self.servo.center()
+            log_info(self.logger, "User lost during following, going other way...")
+            self.motor.forward(config.MOTOR_SLOW)
+            # steer opposite of last known error to search
+            self.servo.set_angle(self.last_error_angle * -1)
             self.target_track_id = None  # Clear target track_id
-            # Revert to TRACKING_USER state to search for user again
-            self._transition_to(State.TRACKING_USER)
+            time.sleep(0.5)
+
             return
         
         if self.tof.detect():
@@ -363,18 +353,17 @@ class BinDieselSystem:
             self._transition_to(State.STOPPED)
             return
         
-        # Calculate steering based on angle using PID control
+        # Calculate steering based on angle 
         if result['angle'] is not None:
-            angle = result['angle']
-            
-            conditional_log(self.logger, 'debug',
-                          f"Person angle: {angle:.1f}°, centered: {result['is_centered']}",
+            angle = result['angle']    
+            conditional_log(self.logger, 'debug', f"Person angle: {angle:.1f}°, centered: {result['is_centered']}",
                           self.debug_mode and config.DEBUG_VISUAL)
             
             
-            # Direct angle steering (old method - no PID)
+            # Direct angle steering 
             steering_angle = max(-45.0, min(45.0, angle))  # Clamp to servo range
             self.servo.set_angle(steering_angle)
+            self.last_error_angle = steering_angle 
             time.sleep(0.4)
             self.servo.center()
             
@@ -425,7 +414,7 @@ class BinDieselSystem:
             self.motor.forward(config.MOTOR_TURN)
             time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
             self.servo.center()  # Center steering
-            self.motor.stop
+            self.motor.stop()
             self.return_turn_complete = True
             log_info(self.logger, "Turn complete, scanning for red square object...")
             return  # Exit early to allow turn to complete
