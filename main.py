@@ -478,12 +478,17 @@ class BinDieselSystem:
             self._transition_to(State.TRACKING_USER)
             return
         
-        if self.tof.detect():
-            print("[Main] User reached (TOF sensor), stopping -------------------")
-            self.motor.stop()
-            self.servo.center()
-            self._transition_to(State.STOPPED)
-            return
+        # Guard TOF usage: ensure sensor exists and emergency stop is enabled
+        if getattr(self, 'tof', None) and config.EMERGENCY_STOP_ENABLED:
+            try:
+                if self.tof.detect():
+                    print("[Main] User reached (TOF sensor), stopping -------------------")
+                    self.motor.stop()
+                    self.servo.center()
+                    self._transition_to(State.STOPPED)
+                    return
+            except Exception as e:
+                conditional_log(self.logger, 'debug', f"TOF detection error in FOLLOWING_USER: {e}", config.DEBUG_TOF)
         
         # Calculate steering based on angle
         if result['angle'] is not None:
@@ -868,6 +873,31 @@ class BinDieselSystem:
                 self.frame_count += 1
                 
                 state = self.sm.get_state()
+                # High-frequency TOF safety check: run every loop to avoid collisions.
+                # This is intentionally placed before state handlers so it runs even
+                # when visual processing is heavy. Guarded by config flag and
+                # presence of the sensor object.
+                try:
+                    if getattr(self, 'tof', None):
+                        if self.tof.detect():
+                            conditional_log(self.logger, 'info',
+                                          "EMERGENCY STOP: TOF detected object nearby, stopping immediately",
+                                          config.DEBUG_TOF)
+                            try:
+                                if hasattr(self, 'motor'):
+                                    self.motor.stop()
+                                if hasattr(self, 'servo'):
+                                    self.servo.center()
+                            except Exception as e:
+                                log_warning(self.logger, f"Error stopping actuators during TOF emergency: {e}", "TOF")
+                            # Transition to STOPPED state
+                            self._transition_to(State.STOPPED)
+                            # Skip normal state handling this loop
+                            time.sleep(0.01)
+                            continue
+                except Exception as e:
+                    # TOF read should never crash the main loop; log and continue
+                    log_warning(self.logger, f"Error reading TOF sensor: {e}", "TOF")
                 
                 # Route to appropriate handler based on state
                 if state == State.IDLE:
