@@ -23,7 +23,6 @@ from servo_controller import ServoController
 from tof_sensor import ToFSensor
 # from voice_recognizer import VoiceRecognizer  # COMMENTED OUT - no voice commands
 # from hand_gesture_controller import HandGestureController, get_gesture_command
-# from radd_detector import RADDDetector
 from logger import setup_logger, log_error, log_warning, log_info, log_debug
 from optimizations import FrameCache, PerformanceMonitor, conditional_log, skip_frames
 
@@ -31,34 +30,22 @@ from optimizations import FrameCache, PerformanceMonitor, conditional_log, skip_
 class BinDieselSystem:
     """Main system controller"""
     
+    ################################################################################################################################# __init__
+    #################################################################################################################################
     def __init__(self):
         """Initialize all system components"""
-        # Set up logging
         self.logger = setup_logger(__name__)
-        
-        # Initialize control flags early to prevent AttributeError
-        self.running = True
-        self._wake_word_stopped = False  # Track if wake word detector has been stopped
+    
+
+        self.sm = StateMachine(
+            tracking_timeout=config.TRACKING_TIMEOUT
+        )
         
         log_info(self.logger, "=" * 70)
         log_info(self.logger, "Bin Diesel System Initializing...")
         log_info(self.logger, "=" * 70)
     
-    def _transition_to(self, new_state):
-        """Transition to a new state with highlighted logging"""
-        current_state = self.sm.get_state()
-        if current_state != new_state:
-            log_info(self.logger, "=" * 70)
-            log_info(self.logger, f"STATE TRANSITION: {current_state.name} -> {new_state.name}")
-            log_info(self.logger, "=" * 70)
-        self.sm.transition_to(new_state)
-        
-        # Initialize state machine
-        self.sm = StateMachine(
-            tracking_timeout=config.TRACKING_TIMEOUT
-        )
-        
-        
+       
         # Initialize wake word detector
         log_info(self.logger, "Initializing wake word detector...")
         try:
@@ -78,7 +65,7 @@ class BinDieselSystem:
             self.cleanup()
             sys.exit(1)
         
-        # Initialize YOLO pose tracker (replaces visual detector)
+        # Initialize YOLO pose tracker 
         log_info(self.logger, "Initializing YOLO pose tracker...")
         try:
             self.visual = YOLOPoseTracker(
@@ -167,21 +154,13 @@ class BinDieselSystem:
         # self.gesture_controller = None
         # self._gesture_controller_initialized = False
         
-        # Initialize RADD detector (for RADD mode) - COMMENTED OUT
-        # log_info(self.logger, "Initializing RADD detector...")
-        # try:
-        #     self.radd_detector = RADDDetector(
-        #         model_path=config.YOLO_CLOTHING_MODEL,
-        #         confidence=config.YOLO_CONFIDENCE
-        #     )
-        #     log_info(self.logger, "RADD detector initialized successfully")
-        # except Exception as e:
-        #     log_warning(self.logger, f"Failed to initialize RADD detector: {e}", "RADD mode will not be available")
-        #     self.radd_detector = None
-        
         # Control flags (running already set at start of __init__)
         self.last_visual_update = 0
         self.visual_update_interval = config.VISUAL_UPDATE_INTERVAL  # Use configurable update interval
+
+                # Initialize control flags early to prevent AttributeError
+        self.running = True
+        self._wake_word_stopped = False  # Track if wake word detector has been stopped
         
         # Performance optimizations
         self.frame_cache = FrameCache(max_age=0.05)  # Cache frames for 50ms
@@ -210,6 +189,26 @@ class BinDieselSystem:
         log_info(self.logger, "After wake word: ACTIVE state will look for user with arm raised")
         log_info(self.logger, "Press Ctrl+C to exit")
         log_info(self.logger, "=" * 70)
+
+    ############################################################################################################################# signal_handler
+    ##############################################################################################################################
+    def signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
+        log_info(self.logger, "Shutdown signal received, cleaning up...")
+        self.running = False
+
+    ##############################################################################################################################_transition_to
+    #################################################################################################################################
+    def _transition_to(self, new_state):
+        """Transition to a new state with highlighted logging"""
+        current_state = self.sm.get_state()
+        if current_state != new_state:
+            log_info(self.logger, "=" * 70)
+            log_info(self.logger, f"STATE TRANSITION: {current_state.name} -> {new_state.name}")
+            log_info(self.logger, "=" * 70)
+        self.sm.transition_to(new_state)
+        
+      
     
     # def _ensure_voice_initialized(self):
     #     """Lazy initialization of voice recognizer to avoid audio conflicts - COMMENTED OUT"""
@@ -260,10 +259,7 @@ class BinDieselSystem:
     #         log_warning(self.logger, f"Failed to initialize hand gesture controller: {e}", "Manual mode hand gestures will not be available")
     #         self.gesture_controller = None
     #         return False
-    def signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
-        log_info(self.logger, "Shutdown signal received, cleaning up...")
-        self.running = False
+
     
     def handle_idle_state(self):
         """Handle IDLE state - wake word only, no voice recognizer (exclusive mic access)"""
