@@ -10,11 +10,9 @@ Usage:
 
 Controls:
     'q'     - Quit
-    's'     - Toggle scan mode (searching for marker)
-    'l'     - Toggle lock mode (tracking with servo/motor)
+    's'     - Restart (back to scan mode from stop)
     'm'     - Toggle motor on/off during lock
     'r'     - Reset tracker and return to scan mode
-    'f'     - Show FPS
 """
 
 import sys
@@ -29,6 +27,7 @@ from logger import setup_logger, log_info, log_warning, log_error
 from servo_controller import ServoController
 from motor_controller import MotorController
 from ultralytics import YOLO
+from tof_sensor import ToFSensor
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -330,10 +329,9 @@ class HomeMarkerTracker:
 
         if self.stop_confirm_count >= self.stop_confirm_threshold:
             log_info(self.logger, f"STOP CONDITION MET! Width: {w} >= {self.stop_distance} (confirmed)")
-            if self.motor:
-                self.motor.stop()
-            if self.servo:
-                self.servo.center()
+            self.motor.stop()
+            self.servo.center()
+            
             # mark stopped and keep last_detection for overlay
             self.is_locked = False
             self.tracker = None
@@ -387,7 +385,7 @@ class HomeMarkerTracker:
         
         # Draw controls
         controls = [
-            "q: quit | s: scan | l: lock | m: motor | r: reset"
+            "q: quit | s: restart (scan) | m: motor | r: reset"
         ]
         y_control = h - 30
         cv2.rectangle(annotated, (5, y_control - 20), (700, y_control + 5), (0, 0, 0), -1)
@@ -405,29 +403,42 @@ class HomeMarkerTracker:
         log_info(self.logger, f"Servo: {bool(self.servo)} | Motor: {bool(self.motor)}")
         log_info(self.logger, "="*50)
         
+        # Import TOF sensor if available
+        tof_sensor = ToFSensor()
+   
         try:
             while True:
-                frame_start = time.time()
-                refresh_time = 1000  # 1 seconds
+                # Check TOF emergency stop
+
+                try:
+                    if tof_sensor.detect():
+                        log_warning(self.logger, "TOF EMERGENCY STOP triggered", "run()")
+                        self.motor.stop()
+                        self.servo.center()
+
+                        self.is_scanning = False
+                        self.is_locked = False
+                        self.is_stopped = False
+                        self.tracker = None
+                        continue
+                except Exception as e:
+                    log_warning(self.logger, f"TOF check error: {e}", "run()")
                 
                 # Get frame
                 frame_rgb = self.get_frame()
                 frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
                 
                 # Process based on mode
-                if self.is_scanning:
+                if self.is_stopped:
+                    # Stopped state: only respond to 's' key to restart
+                    detection = self.last_detection
+                    mode_str = "STOPPED (press 's' to restart)"
+                elif self.is_scanning:
                     detection = self.handle_scan_mode(frame_bgr)
                     mode_str = "SCAN (searching)"
                 elif self.is_locked:
                     detection = self.handle_lock_mode(frame_bgr)
                     mode_str = "LOCK (tracking)"
-                    if time.time() - frame_start < refresh_time:
-                        # Refresh lock mode to avoid stuck frames
-                        self.is_scanning = True
-                        self.is_locked = False
-                elif self.is_stopped:
-                    detection = self.last_detection
-                    mode_str = "STOPPED"
                 else:
                     detection = None
                     mode_str = "IDLE"
@@ -435,12 +446,8 @@ class HomeMarkerTracker:
                 # Draw UI
                 annotated = self.draw_ui(frame_bgr, detection, mode_str)
                 
-                
                 # Display
                 cv2.imshow('Home Marker Tracker Test', annotated)
-                
-                # Lightweight per-second diagnostics
-                # (removed FPS/frame-count based logging)
                 
                 # Handle keyboard input
                 key = cv2.waitKey(1) & 0xFF
@@ -448,21 +455,17 @@ class HomeMarkerTracker:
                     log_info(self.logger, "Quit requested")
                     break
                 elif key == ord('s'):
-                    if not self.is_scanning:
-                        log_info(self.logger, "Switching to SCAN mode")
-                        self.is_scanning = True
-                        self.is_locked = False
-                        self.tracker = None
-                        self.is_stopped = False
-                        if self.motor:
-                            self.motor.stop()
-                        if self.servo:
-                            self.servo.center()
-                elif key == ord('l'):
-                    if not self.is_locked and self.last_detection and self.last_detection['detected']:
-                        log_info(self.logger, "Switching to LOCK mode")
-                        self.is_locked = True
-                        self.is_scanning = False
+                    # 's' key: restart scan mode from any state
+                    log_info(self.logger, "Restarting: switching to SCAN mode")
+                    self.is_scanning = True
+                    self.is_locked = False
+                    self.is_stopped = False
+                    self.tracker = None
+                    self.lost_count = 0
+                    if self.motor:
+                        self.motor.stop()
+                    if self.servo:
+                        self.servo.center()
                 elif key == ord('m'):
                     self.motor_enabled = not self.motor_enabled
                     log_info(self.logger, f"Motor: {'ENABLED' if self.motor_enabled else 'DISABLED'}")
@@ -477,6 +480,7 @@ class HomeMarkerTracker:
                         self.motor.stop()
                     if self.servo:
                         self.servo.center()
+                
                 # Small delay to prevent CPU spinning
                 time.sleep(0.01)
         
