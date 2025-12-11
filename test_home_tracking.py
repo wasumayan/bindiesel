@@ -443,7 +443,7 @@ class HomeMarkerTracker:
 
                         self.is_scanning = False
                         self.is_locked = False
-                        self.is_stopped = False
+                        self.is_stopped = True
                         self.tracker = None
                         self.approach_flag = False
                         continue
