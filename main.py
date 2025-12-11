@@ -873,32 +873,6 @@ class BinDieselSystem:
                 self.frame_count += 1
                 
                 state = self.sm.get_state()
-                # High-frequency TOF safety check: run every loop to avoid collisions.
-                # This is intentionally placed before state handlers so it runs even
-                # when visual processing is heavy. Guarded by config flag and
-                # presence of the sensor object.
-                try:
-                    if getattr(self, 'tof', None):
-                        if self.tof.detect():
-                            conditional_log(self.logger, 'info',
-                                          "EMERGENCY STOP: TOF detected object nearby, stopping immediately",
-                                          config.DEBUG_TOF)
-                            try:
-                                if hasattr(self, 'motor'):
-                                    self.motor.stop()
-                                if hasattr(self, 'servo'):
-                                    self.servo.center()
-                            except Exception as e:
-                                log_warning(self.logger, f"Error stopping actuators during TOF emergency: {e}", "TOF")
-                            # Transition to STOPPED state
-                            self._transition_to(State.STOPPED)
-                            # Skip normal state handling this loop
-                            time.sleep(0.01)
-                            continue
-                except Exception as e:
-                    # TOF read should never crash the main loop; log and continue
-                    log_warning(self.logger, f"Error reading TOF sensor: {e}", "TOF")
-                
                 # Route to appropriate handler based on state
                 if state == State.IDLE:
                     self.handle_idle_state()

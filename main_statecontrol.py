@@ -188,7 +188,9 @@ class BinDieselSystem:
         current_state = self.sm.get_state()
         if current_state != new_state:
             log_info(self.logger, "=" * 70)
+            log_info(self.logger, "=" * 70)
             log_info(self.logger, f"STATE TRANSITION: {current_state.name} -> {new_state.name}")
+            log_info(self.logger, "=" * 70)
             log_info(self.logger, "=" * 70)
         self.sm.transition_to(new_state)
         
@@ -197,7 +199,7 @@ class BinDieselSystem:
     def handle_idle_state(self):
         """Handle IDLE state - wake word only, no voice recognizer (exclusive mic access)"""
   
-        # Ensure wake word detector is running (exclusive mic access)
+        # Ensure wake word detector is running
         if self._wake_word_stopped: 
             try:
                 self.wake_word.start_listening()
@@ -214,51 +216,16 @@ class BinDieselSystem:
             if self.debug_mode:
                 print("[Main] DEBUG: Wake word detected, transitioning to ACTIVE")
             
-            # Stop wake word detector - no longer needed after wake word detected
+            # Stop wake word detector to prevent overlap with voice recognizer
             try:
                 self.wake_word.stop()
                 self._wake_word_stopped = True
-                log_info(self.logger, "Wake word detector stopped (wake word detected)")
             except Exception as e:
                 log_warning(self.logger, f"Error stopping wake word detector: {e}", "State transition")
             
-            # Transition to ACTIVE state for post-wake-word functionality
-            self._transition_to(State.ACTIVE)
+            # Transition to FOLLOWING_USER state for post-wake-word functionality
+            self._transition_to(State.FOLLOWING_USER)
     
-    ######################################################################################################################## handle_active_state
-    ########################################################################################################################## 
-    def handle_active_state(self):
-        """Handle ACTIVE state - post-wake-word: look for user hitting the pose (arm raised)"""
-        
-        # Check visual detection for user with arm raised
-        current_time = time.time()
-        if current_time - self.last_visual_update > self.visual_update_interval: # update camera at intervals 
-            try:
-                # Use cached result if available and fresh (< 100ms old)
-                if (self.cached_visual_result and 
-                    (current_time - self.cached_visual_timestamp) < 0.1):
-                    result = self.cached_visual_result
-                else:
-                    # In ACTIVE state, no target_track_id yet - will prioritize person with arm raised
-                    result = self.visual.update(target_track_id=None)
-                    self.cached_visual_result = result
-                    self.cached_visual_timestamp = current_time
-                
-                self.last_visual_update = current_time
-                
-                # If both person and gesture detected, transition to TRACKING_USER
-                if result['person_detected'] and result['arm_raised']:
-                    # User raised arm - enter autonomous mode
-                    log_info(self.logger, f"Person detected with arm raised! Track ID: {result.get('track_id', 'N/A')}, "
-                                         f"Angle: {result.get('angle', 'N/A'):.1f}°")
-                    self._transition_to(State.TRACKING_USER)
-                    return  
-                elif result['person_detected']:
-                    conditional_log(self.logger, 'debug', 
-                                  f"Person detected (no arm raised). Track ID: {result.get('track_id', 'N/A')}",
-                                  self.debug_mode)
-            except Exception as e:
-                log_error(self.logger, e, "Error in visual detection update")
     
     ################################################################################################################# handle_tracking_user_state
     ############################################################################################################################################
@@ -267,7 +234,6 @@ class BinDieselSystem:
         """Handle TRACKING_USER state - detecting and tracking user"""
         # Update visual detection (use cached if available)
         
-       
         current_time = time.time()
         
         # Frame skipping: only process every Nth frame for better performance
@@ -297,17 +263,12 @@ class BinDieselSystem:
             self.target_track_id = result.get('track_id')  # Store the track_id of the person who raised their arm
             log_info(self.logger, f"Arm raised detected! Track ID: {result.get('track_id', 'N/A')}, "
                                  f"Angle: {result.get('angle', 'N/A'):.1f}°")
-            self._transition_to(State.FOLLOWING_USER)
             conditional_log(self.logger, 'info',
                           f"User tracking confirmed (Track ID: {self.target_track_id}), starting to follow",
                           config.DEBUG_MODE)
+            self._transition_to(State.FOLLOWING_USER)
+            return
         
-        if not result['person_detected']: # IF USER IS LOST - STOP AND CONTINUE MONITORING
-            conditional_log(self.logger, 'info', 
-                          "User lost, stopping and searching...",
-                          config.DEBUG_MODE)
-            self.servo.center()
-    
     ################################################################################################################ handle_following_user_state
     ############################################################################################################################################
     
@@ -317,6 +278,7 @@ class BinDieselSystem:
         if not self.sm.old_state == self.sm.state:
             self.motor.forward(config.MOTOR_FAST) 
             self.sm.transition_to(State.TRACKING_USER)
+            conditional_log(self.logger, 'info', f"Motor forward start at speed {config.MOTOR_FAST}", config.DEBUG_MODE)
         
         # Update visual detection (use cached if available)
         current_time = time.time()
@@ -361,7 +323,12 @@ class BinDieselSystem:
             return
         
         if self.tof.detect():
-            print("[Main] User reached (TOF sensor), stopping -------------------")
+            log_info(self.logger, "=" * 70)
+            log_info(self.logger, "=" * 70)
+            print("[Main] User reached (TOF sensor), stopping")
+            conditional_log(self.logger, 'debug', f"ToF = {self.tof.detect()}", config.DEBUG_MODE)
+            log_info(self.logger, "=" * 70)
+            log_info(self.logger, "=" * 70)
             self.motor.stop()
             self.servo.center()
             self._transition_to(State.STOPPED)
@@ -401,7 +368,7 @@ class BinDieselSystem:
                 self.motor.forward(speed)
                 
         else:
-            # No angle data - stop
+            # No angle data, approaching use? 
             self.motor.forward(config.MOTOR_SLOW)
             self.servo.center()
             # self._transition_to(State.TRACKING_USER)
@@ -412,6 +379,8 @@ class BinDieselSystem:
     def handle_stopped_state(self):
         """Handle STOPPED state - at target distance, waiting for trash collection"""
         # Wait for fixed amount of time for trash placement, then go to HOME
+        conditional_log(self.logger, 'info', "STOPPED: Waiting for trash collection", config.DEBUG_MODE)
+        
         wait_time = 10.0  # Wait 10 seconds for trash placement
         if self.sm.get_time_in_state() > wait_time:
             log_info(self.logger, "Trash collection complete, returning to home")
