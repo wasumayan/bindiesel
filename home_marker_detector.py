@@ -196,14 +196,19 @@ def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=
                 square_score = 1.0 - abs(1.0 - aspect_ratio) / square_aspect_ratio_tolerance
                 square_score = max(0.0, min(1.0, square_score))  # Clamp between 0 and 1
                 
-                # Combined score: confidence * color_match * square_score
-                combined_score = confidence * color_match_ratio * square_score
+                # Calculate area (proxy for distance/size)
+                area = width * height
                 
-                if combined_score > best_score:
-                    best_score = combined_score
+                # Prioritize by area first (closest/largest object)
+                # Then use combined score as tiebreaker
+                # This prevents background posters from being selected over the cube in front
+                combined_score = confidence * color_match_ratio * square_score
+                priority_score = (area * 0.7) + (combined_score * 0.3)  # 70% area, 30% quality
+                
+                if priority_score > best_score:
+                    best_score = priority_score
                     center_x = (x1 + x2) // 2
                     center_y = (y1 + y2) // 2
-                    area = width * height
                     
                     best_detection = {
                         'detected': True,
