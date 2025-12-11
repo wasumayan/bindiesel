@@ -155,7 +155,7 @@ class BinDieselSystem:
         self.pid_ki = 0.0   # Integral gain
         self.pid_kd = 0.0   # Derivative gain
         self.pid_error_integral = 0.0  # Accumulated error over time
-        self.pid_last_error = 0.0  # Previous error for derivative calculation
+        self.pid_last_error = None  # Previous error for derivative calculation (None = first frame, skip derivative)
         
         # Performance optimizations
         self.frame_cache = FrameCache(max_age=0.05)  # Cache frames for 50ms
@@ -207,7 +207,7 @@ class BinDieselSystem:
     def reset_pid_steering(self):
         """Reset PID state to avoid integral windup and stale errors"""
         self.pid_error_integral = 0.0
-        self.pid_last_error = 0.0
+        self.pid_last_error = None  # Set to None so derivative is skipped on first frame
         
     ########################################################################################################################## handle_idle_state
     ##############################################################################################################################
@@ -359,7 +359,13 @@ class BinDieselSystem:
             # PID steering control to handle servo latency
             error = angle  # Error term: deviation from center (0°)
             self.pid_error_integral += error  # Accumulate error over time
-            pid_error_derivative = error - self.pid_last_error  # Rate of change
+            
+            # Compute derivative only if we have a previous error (skip on first frame)
+            if self.pid_last_error is not None:
+                pid_error_derivative = error - self.pid_last_error  # Rate of change
+            else:
+                pid_error_derivative = 0.0  # No derivative on first frame (prevents spike)
+            
             self.pid_last_error = error  # Store for next iteration
             
             # Calculate PID output (steering angle)
