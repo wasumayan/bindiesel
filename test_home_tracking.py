@@ -96,10 +96,10 @@ class CentroidTracker:
                 return False, self.last_bbox
             return True, self.last_bbox
 
-
+#####################################################################################################
 class HomeMarkerTracker:
     """Tracks red square home marker with servo/motor integration"""
-    
+    #####################################################################################################
     def __init__(self, use_camera=True, use_servo=True, use_motor=True):
         self.logger = setup_logger(__name__)
         self.use_camera = use_camera
@@ -162,8 +162,6 @@ class HomeMarkerTracker:
         # Performance tracking
         self.frame_count = 0
         self.start_time = time.time()
-        self.fps_history = deque(maxlen=30)
-        self.show_fps = False
         self.motor_enabled = True
         
         # Detection parameters
@@ -178,11 +176,12 @@ class HomeMarkerTracker:
         self.slow_speed = config.MOTOR_SLOW
         self.medium_speed = config.MOTOR_MEDIUM
         self.fast_speed = config.MOTOR_FAST
+       
         # Stop confirmation to avoid immediate stop on a single frame
         self.stop_confirm_count = 0
         self.stop_confirm_threshold = 2
         self.is_stopped = False
-
+#####################################################################################################
     def get_frame(self):
         """Get next frame from camera or dummy source"""
         if self.use_camera and self.picam2:
@@ -205,7 +204,7 @@ class HomeMarkerTracker:
             return frame
         else:
             return np.zeros((config.CAMERA_HEIGHT, config.CAMERA_WIDTH, 3), dtype=np.uint8) + 50
-
+#####################################################################################################
     def handle_scan_mode(self, frame_bgr):
         """Scan for home marker (no lock yet)"""
         marker = detect_red_box(
@@ -237,7 +236,7 @@ class HomeMarkerTracker:
             if self.motor:
                 self.motor.forward(self.slow_speed)
         return None
-
+#####################################################################################################
     def handle_lock_mode(self, frame_bgr):
         """Track locked marker with servo/motor steering"""
         if not self.tracker:
@@ -321,10 +320,14 @@ class HomeMarkerTracker:
         }
         self.last_detection = detection
         
-        # Check stopping condition (require consecutive frames to confirm)
-        if w >= self.stop_distance:
+        # Check stopping condition 
+        centered = abs(offset) <= (self.center_tolerance * 0.5)
+        if w >= self.stop_distance and centered:
             self.stop_confirm_count += 1
+            log_info(self.logger, f"Stop check: width={w} >= {self.stop_distance} and centered={centered} (count={self.stop_confirm_count})")
         else:
+            if w >= self.stop_distance and not centered:
+                log_info(self.logger, f"Stop candidate ignored: width={w} >= {self.stop_distance} but not centered (offset={offset:.0f}px)")
             self.stop_confirm_count = 0
 
         if self.stop_confirm_count >= self.stop_confirm_threshold:
@@ -340,7 +343,7 @@ class HomeMarkerTracker:
             self.stop_confirm_count = 0
         
         return detection
-
+#####################################################################################################
     def draw_ui(self, frame, detection, mode_str):
         """Draw UI overlay on frame"""
         annotated = frame.copy()
@@ -399,7 +402,7 @@ class HomeMarkerTracker:
             cv2.putText(annotated, fps_text, (config.CAMERA_WIDTH - 150, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         
         return annotated
-    
+    #####################################################################################################
     def run(self):
         """Main test loop"""
         log_info(self.logger, "="*50)
