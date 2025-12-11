@@ -178,6 +178,10 @@ class HomeMarkerTracker:
         self.slow_speed = config.MOTOR_SLOW
         self.medium_speed = config.MOTOR_MEDIUM
         self.fast_speed = config.MOTOR_FAST
+        # Stop confirmation to avoid immediate stop on a single frame
+        self.stop_confirm_count = 0
+        self.stop_confirm_threshold = 2
+        self.is_stopped = False
 
     def get_frame(self):
         """Get next frame from camera or dummy source"""
@@ -317,15 +321,23 @@ class HomeMarkerTracker:
         }
         self.last_detection = detection
         
-        # Check stopping condition
+        # Check stopping condition (require consecutive frames to confirm)
         if w >= self.stop_distance:
-            log_info(self.logger, f"STOP CONDITION MET! Width: {w} >= {self.stop_distance}")
+            self.stop_confirm_count += 1
+        else:
+            self.stop_confirm_count = 0
+
+        if self.stop_confirm_count >= self.stop_confirm_threshold:
+            log_info(self.logger, f"STOP CONDITION MET! Width: {w} >= {self.stop_distance} (confirmed)")
             if self.motor:
                 self.motor.stop()
             if self.servo:
                 self.servo.center()
+            # mark stopped and keep last_detection for overlay
             self.is_locked = False
             self.tracker = None
+            self.is_stopped = True
+            self.stop_confirm_count = 0
         
         return detection
 
@@ -411,6 +423,9 @@ class HomeMarkerTracker:
                 elif self.is_locked:
                     detection = self.handle_lock_mode(frame_bgr)
                     mode_str = "LOCK (tracking)"
+                elif self.is_stopped:
+                    detection = self.last_detection
+                    mode_str = "STOPPED"
                 else:
                     detection = None
                     mode_str = "IDLE"
@@ -437,6 +452,7 @@ class HomeMarkerTracker:
                         self.is_scanning = True
                         self.is_locked = False
                         self.tracker = None
+                        self.is_stopped = False
                         if self.motor:
                             self.motor.stop()
                         if self.servo:
@@ -455,6 +471,7 @@ class HomeMarkerTracker:
                     self.is_locked = False
                     self.tracker = None
                     self.lost_count = 0
+                    self.is_stopped = False
                     if self.motor:
                         self.motor.stop()
                     if self.servo:
