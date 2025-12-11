@@ -44,11 +44,12 @@ def check_color_match_red(frame, bbox):
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     
     # Red color ranges in HSV (red wraps around 0/180)
-    # Lower red range (0-10) - more restrictive saturation/value to avoid blue
-    lower_red1 = np.array([0, 100, 100])  # Increased saturation and value thresholds
-    upper_red1 = np.array([10, 255, 255])
-    # Upper red range (170-180)
-    lower_red2 = np.array([170, 100, 100])  # Increased saturation and value thresholds
+    # Extended ranges to include darker/shadowed reds
+    # Lower red range (0-15) - lower saturation/value to catch shadowed reds
+    lower_red1 = np.array([0, 40, 30])  # Loosened saturation and value for shadows
+    upper_red1 = np.array([15, 255, 255])
+    # Upper red range (165-180) - slightly expanded hue range
+    lower_red2 = np.array([165, 40, 30])  # Loosened saturation and value for shadows
     upper_red2 = np.array([180, 255, 255])
     
     # Blue color range in HSV (for exclusion - hue around 100-130)
@@ -75,7 +76,7 @@ def check_color_match_red(frame, bbox):
     return color_match_ratio
 
 
-def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=0.3, square_aspect_ratio_tolerance=0.45):
+def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=0.2, square_aspect_ratio_tolerance=0.6):
     """
     Detect red square object using YOLO object detection + OpenCV color tracking
     Uses YOLO to get bounding boxes (ignores labels), checks for red color and square dimensions
@@ -84,10 +85,10 @@ def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=
         yolo_model: YOLO model instance
         frame: BGR frame from camera (OpenCV format) - will be converted to RGB for YOLO
         confidence_threshold: Minimum YOLO confidence (default: 0.3)
-        color_threshold: Minimum color match ratio (default: 0.3 = 30%)
-        square_aspect_ratio_tolerance: Tolerance for square shape (default: 0.3 = 30%)
+        color_threshold: Minimum color match ratio (default: 0.2 = 20%)
+        square_aspect_ratio_tolerance: Tolerance for square shape (default: 0.6 = 60%)
                                       Aspect ratio must be between (1.0 - tolerance) and (1.0 + tolerance)
-                                      e.g., 0.3 means aspect ratio between 0.7 and 1.3
+                                      e.g., 0.6 means aspect ratio between 0.4 and 1.6 (accepts irregular shapes)
         
     Returns:
         dict with marker info: {
@@ -171,7 +172,7 @@ def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=
             height = y2 - y1
             
             # Skip if bounding box is too small
-            if width < 20 or height < 20:
+            if width < 15 or height < 15:
                 continue
             
             # Calculate aspect ratio (width/height)

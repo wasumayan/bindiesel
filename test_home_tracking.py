@@ -56,13 +56,13 @@ class CentroidTracker:
         if not self.yolo_model:
             return False, self.last_bbox
         
-        # Re-detect marker in frame (use relaxed thresholds for lock mode)
+        # Re-detect marker in frame (use relaxed thresholds for lock mode reliability)
         marker = detect_red_box(
             self.yolo_model,
             frame,
             confidence_threshold=0.20,  # Lowered for lock mode reliability
-            color_threshold=0.20,       # Lowered for lock mode reliability
-            square_aspect_ratio_tolerance=0.45  # More tolerant of shape variation
+            color_threshold=0.12,       # Lowered to catch darkened reds
+            square_aspect_ratio_tolerance=0.60  # Tolerant of irregular shapes
         )
         
         if marker['detected']:
@@ -160,10 +160,10 @@ class HomeMarkerTracker:
         # Performance tracking
         self.motor_enabled = True
         
-        # Detection parameters
+        # Detection parameters (loosened for shadowed red cube)
         self.confidence_threshold = 0.25
-        self.color_threshold = 0.25
-        self.square_tolerance = 0.45
+        self.color_threshold = 0.15  # Lowered from 0.25 to catch darker reds
+        self.square_tolerance = 0.60  # Raised from 0.45 to accept irregular cube shapes
         self.stop_distance = config.HOME_MARKER_STOP_DISTANCE
         self.slow_threshold = config.HOME_MARKER_SLOW_DISTANCE
         self.center_tolerance = config.CAMERA_WIDTH * 0.1
@@ -178,6 +178,10 @@ class HomeMarkerTracker:
         self.stop_confirm_count = 0
         self.stop_confirm_threshold = 2
         self.is_stopped = False
+        
+        # Slow approach confirmation (separate counter for smooth deceleration)
+        self.slow_confirm_count = 0
+        self.slow_confirm_threshold = 2
         
         # Servo state tracking (to reduce jitter from redundant center commands)
         self.last_servo_angle = 0.0  # Track last commanded angle
@@ -305,12 +309,16 @@ class HomeMarkerTracker:
         self.servo.set_angle(steering_angle)
         self.last_servo_angle = steering_angle  # Track for centering check
         
-        # Determine speed based on centering and distance
-        if self.approach_flag == False:
+        # Determine speed based on approach mode and centering
+        if self.approach_flag:
+            # In slow approach mode: lock to slow speed
+            speed = self.slow_speed
+            speed_str = "SLOW (approach)"
+        else:
+            # Normal mode: speed based on centering
             if abs(offset) < self.center_tolerance:
                 speed = self.medium_speed
                 speed_str = "MEDIUM"
-  
             else:
                 # Marker off-center - move slower
                 speed = self.slow_speed
@@ -335,6 +343,16 @@ class HomeMarkerTracker:
         }
         self.last_detection = detection
         
+        # Check slow approach condition (width-based)
+        if w >= self.slow_threshold:
+            self.slow_confirm_count += 1
+            if self.slow_confirm_count >= self.slow_confirm_threshold and not self.approach_flag:
+                log_info(self.logger, f"SLOW APPROACH TRIGGERED! Width: {w} >= {self.slow_threshold}")
+                self.approach_flag = True
+                self.slow_confirm_count = 0
+        else:
+            self.slow_confirm_count = 0
+        
         # Check stopping condition 
         centered = abs(offset) <= (self.center_tolerance * 0.5)
         if w >= self.stop_distance and centered:
@@ -345,15 +363,10 @@ class HomeMarkerTracker:
                 log_info(self.logger, f"Stop candidate ignored: width={w} >= {self.stop_distance} but not centered (offset={offset:.0f}px)")
             self.stop_confirm_count = 0
 
-        if self.stop_confirm_count >= self.slow_threshold:
-            log_info(self.logger, f"SLOW CONDITION MET! Width: {w} >= {self.slow_threshold} (confirmed)")
-            self.motor.forward(self.slow_speed * 0.9)
-            self.approach_flag = True
-
-
         if self.stop_confirm_count >= self.stop_confirm_threshold:
             log_info(self.logger, f"STOP CONDITION MET! Width: {w} >= {self.stop_distance} (confirmed)")
             self.motor.stop()
+
             self.safe_center_servo()
             
             # mark stopped and keep last_detection for overlay
