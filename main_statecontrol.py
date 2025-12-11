@@ -488,14 +488,17 @@ class BinDieselSystem:
 
                 # SAFETY: Check TOF sensor FIRST before any other processing
                 # This ensures immediate emergency stop response
-                if self.tof and self.tof.detect() and state != State.IDLE and state != State.STOPPED:                    # Emergency stop triggered by TOF
+                if self.tof and self.tof.detect() and state != State.IDLE and state != State.STOPPED:   
+                    if state == State.HOME: 
+                        log_info(self.logger, "TRYING TO TURN, PLEASE MOVE AWAY FROM BIN DIESEL")
+                        continue  # Skip all other processing this frame
                     log_info(self.logger, "=" * 70)
                     log_info(self.logger, "EMERGENCY STOP: TOF sensor triggered!")
                     log_info(self.logger, "=" * 70)
                     self.motor.stop()
                     self.servo.center()
+
                     # Transition to STOPPED state if currently in a movement state
-  
                     if state in (State.FOLLOWING_USER, State.TRACKING_USER):
                         self._transition_to(State.STOPPED)
 
