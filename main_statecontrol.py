@@ -380,7 +380,7 @@ class BinDieselSystem:
         """Handle STOPPED state - at target distance, waiting for trash collection"""
         # Wait for fixed amount of time for trash placement, then go to HOME
         conditional_log(self.logger, 'info', "STOPPED: Waiting for trash collection", config.DEBUG_MODE)
-        
+
         wait_time = 10.0  # Wait 10 seconds for trash placement
         if self.sm.get_time_in_state() > wait_time:
             log_info(self.logger, "Trash collection complete, returning to home")
@@ -393,7 +393,7 @@ class BinDieselSystem:
         # Step 1: Turn 180 degrees (only once when entering this state)
         if not hasattr(self, 'return_turn_complete'):
             log_info(self.logger, "Returning to home: Turning 180 degrees...")
-            self.motor.stop()  # Stop before turning
+            self.motor.forward(config.MOTOR_FAST)  # Stop before turning
             # Turn left max (or right max - you can change this)
             self.servo.turn_left(1.0)  # Max left turn
             time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
@@ -459,7 +459,7 @@ class BinDieselSystem:
                 log_info(self.logger, "Home marker not found, searching...")
                 # Turn slowly while searching
                 self.servo.turn_left(0.3)  # Small left turn
-                self.motor.forward(config.MOTOR_SLOW * 0.5)  # Very slow forward
+                self.motor.forward(config.MOTOR_SLOW )  # Very slow forward
                 
         except Exception as e:
             log_error(self.logger, e, "Error in return to home detection")
