@@ -23,11 +23,11 @@ PWM_FREQUENCY_MOTOR = 40  #Hz
 PWM_FREQUENCY = 40  # Alias for motor frequency
 
 MOTOR_STOP = 100.0      # 0% duty cycle = stopped
-MOTOR_MAX = 95       # 100% duty cycle = maximum speed 93.7 
+MOTOR_MAX = 93.7       # 100% duty cycle = maximum speed 93.7 
 # Motor Speed Configuration
 FOLLOW_SPEED = 1.0  # Speed when following user (0.0-1.0)
-MOTOR_SLOW = 1.05  # Slow speed for turning
-MOTOR_MEDIUM = 1.02  # Medium speed
+MOTOR_SLOW = 1.02  # Slow speed for turning
+MOTOR_MEDIUM = 1.01  # Medium speed
 MOTOR_FAST = 1.0  # Fast speed
 
 # Servo Control Values (PWM duty cycle percentages)
