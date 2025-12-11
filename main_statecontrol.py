@@ -483,6 +483,9 @@ class BinDieselSystem:
         """Main control loop"""
         try:
             while self.running:
+
+                state = self.sm.get_state()
+
                 # SAFETY: Check TOF sensor FIRST before any other processing
                 # This ensures immediate emergency stop response
                 if self.tof and self.tof.detect() and state != State.IDLE and state != State.STOPPED:                    # Emergency stop triggered by TOF
@@ -492,9 +495,12 @@ class BinDieselSystem:
                     self.motor.stop()
                     self.servo.center()
                     # Transition to STOPPED state if currently in a movement state
-                    state = self.sm.get_state()
+  
                     if state in (State.FOLLOWING_USER, State.TRACKING_USER):
                         self._transition_to(State.STOPPED)
+
+                    else: 
+                        state = State.IDLE
                     time.sleep(0.05)  # Small delay to allow motor to stop
                     continue  # Skip all other processing this frame
                 
@@ -502,8 +508,8 @@ class BinDieselSystem:
                 self.performance_monitor.update()
                 self.frame_count += 1
                 
-                state = self.sm.get_state()
                 
+            
                 # Route to appropriate handler based on state
                 if state == State.IDLE:
                     self.handle_idle_state()
