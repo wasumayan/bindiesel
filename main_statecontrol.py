@@ -337,6 +337,7 @@ class BinDieselSystem:
             self.motor.forward(config.MOTOR_SLOW)
             # steer opposite of last known error to search
             self.servo.set_angle(self.last_error_angle * -2)
+            self.last_error_angle = self.last_error_angle * -1  # Flip for next time
             self.target_track_id = None  # Clear target track_id
             time.sleep(0.5)
 
