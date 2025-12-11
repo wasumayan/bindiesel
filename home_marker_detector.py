@@ -17,7 +17,7 @@ def check_color_match_red(frame, bbox):
     Check if object in bounding box matches red color using OpenCV
     
     Args:
-        frame: RGB frame
+        frame: BGR frame (OpenCV format)
         bbox: Bounding box (x1, y1, x2, y2)
         
     Returns:
@@ -40,21 +40,32 @@ def check_color_match_red(frame, bbox):
     if roi.size == 0:
         return 0.0
     
-    # Convert RGB to HSV for better color detection
-    hsv = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
+    # Convert BGR to HSV for better color detection
+    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     
     # Red color ranges in HSV (red wraps around 0/180)
-    # Lower red range (0-10)
-    lower_red1 = np.array([0, 50, 50])
+    # Lower red range (0-10) - more restrictive saturation/value to avoid blue
+    lower_red1 = np.array([0, 100, 100])  # Increased saturation and value thresholds
     upper_red1 = np.array([10, 255, 255])
     # Upper red range (170-180)
-    lower_red2 = np.array([170, 50, 50])
+    lower_red2 = np.array([170, 100, 100])  # Increased saturation and value thresholds
     upper_red2 = np.array([180, 255, 255])
     
+    # Blue color range in HSV (for exclusion - hue around 100-130)
+    # We'll use this to explicitly exclude blue objects
+    lower_blue = np.array([100, 50, 50])
+    upper_blue = np.array([130, 255, 255])
+    
     # Create mask for red color
-    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-    mask = mask1 + mask2
+    mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
+    mask_red2 = cv2.inRange(hsv, lower_red2, upper_red2)
+    mask_red = mask_red1 + mask_red2
+    
+    # Create mask for blue color (to exclude it)
+    mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
+    
+    # Red mask minus blue mask (exclude blue pixels from red detection)
+    mask = cv2.bitwise_and(mask_red, cv2.bitwise_not(mask_blue))
     
     # Calculate percentage of pixels matching red color
     total_pixels = mask.size
@@ -71,7 +82,7 @@ def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=
     
     Args:
         yolo_model: YOLO model instance
-        frame: RGB frame from camera
+        frame: BGR frame from camera (OpenCV format) - will be converted to RGB for YOLO
         confidence_threshold: Minimum YOLO confidence (default: 0.3)
         color_threshold: Minimum color match ratio (default: 0.3 = 30%)
         square_aspect_ratio_tolerance: Tolerance for square shape (default: 0.3 = 30%)
@@ -105,9 +116,12 @@ def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=
         }
     
     try:
+        # Convert BGR to RGB for YOLO (YOLO expects RGB)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
         # Run YOLO object detection (we use it only for bounding boxes, not labels)
         results = yolo_model(
-            frame,
+            frame_rgb,
             conf=confidence_threshold,
             verbose=False
         )
@@ -234,18 +248,18 @@ def detect_red_box(yolo_model, frame, confidence_threshold=0.3, color_threshold=
 
 def draw_overlay(frame, marker, yolo_result=None):
     """
-    Draw detection overlay on frame showing red box detection
+    Draw detection overlay on frame showing red square detection
     
     Args:
-        frame: RGB frame
+        frame: BGR frame (OpenCV format)
         marker: Detection result dict from detect_red_box()
         yolo_result: Optional YOLO result object for default overlay
         
     Returns:
         Annotated frame in BGR format
     """
-    # Convert RGB to BGR for OpenCV display
-    annotated_frame = cv2.cvtColor(frame.copy(), cv2.COLOR_RGB2BGR)
+    # Frame is already in BGR format
+    annotated_frame = frame.copy()
     
     # Use YOLO's built-in plot() if available for default overlays
     if yolo_result is not None:
@@ -253,29 +267,29 @@ def draw_overlay(frame, marker, yolo_result=None):
             annotated_frame = yolo_result.plot()  # YOLO's default overlay (returns BGR)
         except Exception as e:
             logger.warning(f"YOLO plot() failed: {e}, using frame as-is")
-            annotated_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            # Frame is already BGR, no conversion needed
     
-        # Draw red box detection overlay
-        if marker['detected']:
-            # Draw bounding box
-            x1 = marker['center_x'] - marker['width'] // 2
-            y1 = marker['center_y'] - marker['height'] // 2
-            x2 = marker['center_x'] + marker['width'] // 2
-            y2 = marker['center_y'] + marker['height'] // 2
-            
-            # Green box for detected red square
-            color = (0, 255, 0)  # Green in BGR
-            thickness = 3
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, thickness)
-            
-            # Draw center point
-            cv2.circle(annotated_frame, (marker['center_x'], marker['center_y']), 5, color, -1)
-            
-            # Draw label with detection info
-            label = "RED SQUARE DETECTED"
-            conf_text = f"Conf: {marker['confidence']:.2f}"
-            color_text = f"Color Match: {marker['color_match']:.1%}"
-            aspect_text = f"Aspect Ratio: {marker.get('aspect_ratio', 0):.2f}"
+    # Draw red box detection overlay
+    if marker['detected']:
+        # Draw bounding box
+        x1 = marker['center_x'] - marker['width'] // 2
+        y1 = marker['center_y'] - marker['height'] // 2
+        x2 = marker['center_x'] + marker['width'] // 2
+        y2 = marker['center_y'] + marker['height'] // 2
+        
+        # Green box for detected red square
+        color = (0, 255, 0)  # Green in BGR
+        thickness = 3
+        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, thickness)
+        
+        # Draw center point
+        cv2.circle(annotated_frame, (marker['center_x'], marker['center_y']), 5, color, -1)
+        
+        # Draw label with detection info
+        label = "RED SQUARE DETECTED"
+        conf_text = f"Conf: {marker['confidence']:.2f}"
+        color_text = f"Color Match: {marker['color_match']:.1%}"
+        aspect_text = f"Aspect Ratio: {marker.get('aspect_ratio', 0):.2f}"
         
         # Background for text (for better visibility)
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -427,17 +441,20 @@ def main():
             )
             yolo_result = yolo_results[0] if yolo_results else None
             
+            # Convert RGB to BGR for color detection (detect_red_box expects BGR)
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            
             # Detect red square
             marker = detect_red_box(
                 yolo_model,
-                frame,
+                frame_bgr,
                 confidence_threshold=args.confidence,
                 color_threshold=args.color_threshold,
                 square_aspect_ratio_tolerance=args.square_tolerance
             )
             
-            # Draw overlay
-            annotated_frame = draw_overlay(frame, marker, yolo_result)
+            # Draw overlay (frame_bgr is already BGR)
+            annotated_frame = draw_overlay(frame_bgr, marker, yolo_result)
             
             # Calculate FPS
             frame_count += 1
