@@ -82,9 +82,36 @@ class YOLOPoseTracker:
         # Initialize camera
         print("[YOLOPoseTracker] Initializing camera...")
         self.picam2 = None
+        
+        # Check if camera is available before trying to initialize
+        try:
+            camera_info = Picamera2.global_camera_info()
+            if not camera_info or len(camera_info) == 0:
+                raise RuntimeError("No camera detected. Please check:\n"
+                                 "  1. Camera is connected properly\n"
+                                 "  2. Camera is enabled: sudo raspi-config → Interface Options → Camera → Enable\n"
+                                 "  3. Camera module is not being used by another process")
+            print(f"[YOLOPoseTracker] Found {len(camera_info)} camera(s)")
+        except Exception as check_error:
+            raise RuntimeError(f"Cannot access camera information: {check_error}\n"
+                             "Please check:\n"
+                             "  1. Camera is connected properly\n"
+                             "  2. Camera is enabled: sudo raspi-config → Interface Options → Camera → Enable\n"
+                             "  3. picamera2 is installed: sudo apt install python3-picamera2")
+        
         try:
             # Create camera instance
-            self.picam2 = Picamera2()
+            # NOTE: Only ONE process can access the Raspberry Pi camera at a time!
+            # If maincallista.py or another program is using the camera, this will fail.
+            # Check for running processes: ps aux | grep -E 'maincallista|test_yolo|test_apriltag'
+            # Explicitly specify camera_num=0 to avoid index errors
+            try:
+                self.picam2 = Picamera2(camera_num=0)
+            except (IndexError, ValueError) as e:
+                # If camera_num=0 fails, try without specifying (default behavior)
+                # This handles cases where camera indexing is different
+                print(f"[YOLOPoseTracker] Warning: camera_num=0 failed, trying default: {e}")
+                self.picam2 = Picamera2()
             
             # Create preview configuration with FPS control
             preview_config = self.picam2.create_preview_configuration(
@@ -122,17 +149,32 @@ class YOLOPoseTracker:
             print(f"[YOLOPoseTracker] Camera started: {width}x{height}")
         except Exception as e:
             # Clean up on error
-            if self.picam2:
+            picam2_instance = getattr(self, 'picam2', None)
+            if picam2_instance is not None:
                 try:
-                    self.picam2.stop()
+                    picam2_instance.stop()
                 except:
                     pass
                 try:
-                    self.picam2.close()
+                    picam2_instance.close()
                 except:
                     pass
-                self.picam2 = None
-            raise RuntimeError(f"Failed to initialize camera: {e}")
+            self.picam2 = None
+            
+            # Provide helpful error message for camera conflicts
+            error_msg = str(e)
+            if "list index out of range" in error_msg or "IndexError" in error_msg:
+                raise RuntimeError(f"Failed to initialize camera: {e}\n\n"
+                                 "CAMERA CONFLICT DETECTED!\n"
+                                 "The camera is likely already in use by another process.\n\n"
+                                 "To fix:\n"
+                                 "  1. Check for running processes: ps aux | grep -E 'maincallista|test_yolo|test_apriltag|python.*camera'\n"
+                                 "  2. Stop any running programs: pkill -f maincallista.py  (or the conflicting program)\n"
+                                 "  3. Wait a few seconds for camera to be released\n"
+                                 "  4. Try again\n\n"
+                                 "Only ONE program can access the Raspberry Pi camera at a time!")
+            else:
+                raise RuntimeError(f"Failed to initialize camera: {e}")
         
         # Tracking state
         self.tracked_persons = {}  # track_id -> person data
