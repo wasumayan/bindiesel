@@ -102,11 +102,16 @@ TOF_DEBOUNCE_TIME = 0.05  # Debounce time in seconds (50ms) to filter noise
 TOF_HIGH_COUNT_THRESHOLD = 1  # Number of consecutive HIGH readings required to trigger (set to 1 for immediate response; use 2-3 if noise is an issue)
 
 # Home Marker Configuration (for return to home)
-HOME_MARKER_OBJECT_CLASS = 'box'  # YOLO object class to detect as home marker (e.g., 'box', 'backpack', 'suitcase')
-HOME_MARKER_COLOR = 'red'  # Color of home marker (red, blue, green, etc.) - used with YOLO detection
-HOME_MARKER_CONFIDENCE = 0.3  # Minimum confidence for home marker detection
-HOME_MARKER_COLOR_THRESHOLD = 0.3  # Minimum percentage of object that must match color (0.0-1.0)
-HOME_MARKER_STOP_DISTANCE = 100  # Stop when marker is this many pixels wide (closer = larger)
+# ArUco Marker Configuration
+ARUCO_TAG_SIZE_M = 0.047  # Physical size of ArUco marker in meters (default: 0.047 = 47mm)
+HOME_MARKER_STOP_DISTANCE_M = 0.3  # Stop when marker is this close in meters (default: 0.3m = 30cm)
+
+# Legacy YOLO-based detection (deprecated - using ArUco now)
+HOME_MARKER_OBJECT_CLASS = 'box'  # YOLO object class to detect as home marker (deprecated)
+HOME_MARKER_COLOR = 'red'  # Color of home marker (deprecated - using ArUco now)
+HOME_MARKER_CONFIDENCE = 0.3  # Minimum confidence for home marker detection (deprecated)
+HOME_MARKER_COLOR_THRESHOLD = 0.3  # Minimum percentage of object that must match color (deprecated)
+HOME_MARKER_STOP_DISTANCE = 100  # Stop when marker is this many pixels wide (deprecated - use HOME_MARKER_STOP_DISTANCE_M)
 HOME_MARKER_SLOW_DISTANCE = 50
 TURN_180_DURATION = 5.9  # Seconds to turn 180 degrees
 
