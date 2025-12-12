@@ -149,7 +149,7 @@ class ManualControl:
         # Stop previous command
         self.motor.stop()
         self.servo.center()
-        time.sleep(0.15)  # Brief pause between commands (matching maincallista timing)
+        time.sleep(0.05)  # Brief pause between commands (matching maincallista timing)
         
         if command == self.COMMAND_STOP:
             self.stop_all()
@@ -244,9 +244,11 @@ class ManualControl:
                             self.motor.forward(config.MOTOR_MEDIUM)
                             self.servo.center()
                         elif self.current_command == self.COMMAND_LEFT:
+                            # Set both motor and servo for left turn
                             self.servo.turn_left(1.0)
                             self.motor.forward(config.MOTOR_MEDIUM)
                         elif self.current_command == self.COMMAND_RIGHT:
+                            # Set both motor and servo for right turn
                             self.servo.turn_right(1.0)
                             self.motor.forward(config.MOTOR_MEDIUM)
                 
