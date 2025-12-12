@@ -403,6 +403,7 @@ class BinDieselSystem:
             time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
             self.servo.center()  # Center steering
             self.motor.stop()
+            time.sleep(0.5)
             self.return_turn_complete = True
             log_info(self.logger, "Turn complete, scanning for ArUco marker...")
             return  # Exit early to allow turn to complete
@@ -475,7 +476,7 @@ class BinDieselSystem:
                 if is_centered:
                     speed = config.MOTOR_SLOW
                 else:
-                    speed = config.MOTOR_SLOW
+                    speed = config.MOTOR_SUPER_SLOW
                         
                 self.motor.forward(speed)
                 
