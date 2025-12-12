@@ -455,7 +455,7 @@ class BinDieselSystem:
                     time.sleep(5.0)
                     self.servo.turn_left(1.0)  # Max left turn
                     self.motor.forward(config.MOTOR_TURN)
-                    time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
+                    time.sleep(config.TURN_180_DURATION - 0.3)  # Turn for specified duration
                     self.servo.center()  # Center steering
                     self.motor.stop()
 
