@@ -31,7 +31,7 @@ MOTOR_SUPER_SLOW = 1.07  # Super slow speed for fine adjustments
 MOTOR_SLOW = 1.05  # low speed for turning
 MOTOR_MEDIUM = 1.02  # Medium speed
 MOTOR_FAST = 1.0  # Fast speed
-MOTOR_TURN = 0.85
+MOTOR_TURN = 0.91
 
 # Servo Control Values (PWM duty cycle percentages)
 PWM_FREQUENCY_SERVO = 50 #HZ
