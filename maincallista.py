@@ -469,6 +469,8 @@ class BinDieselSystem:
                 
                 # Set steering towards marker
                 self.servo.set_angle(angle)
+                time.sleep(config.SLEEP_TIMER)
+                self.servo.center()
                 
                 # Adjust speed based on centering (similar to user following logic)
                 if is_centered:
