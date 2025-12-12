@@ -516,10 +516,7 @@ class BinDieselSystem:
             while self.running:
 
                 state = self.sm.get_state()
-
-                # SAFETY: Check TOF sensor FIRST before any other processing
-                # This ensures immediate emergency stop response
-                # Exception: Don't check TOF during HOME state turn (when return_turn_complete is not set)
+                
                 is_turning_in_home = (state == State.HOME and not hasattr(self, 'return_turn_complete'))
                 
                 if self.tof and self.tof.detect() and state != State.IDLE:
@@ -533,10 +530,9 @@ class BinDieselSystem:
                         # In HOME state after turn - stop and return to IDLE
                         log_info(self.logger, "=" * 70)
                         log_info(self.logger, "EMERGENCY STOP: TOF sensor triggered in HOME state!")
-                        log_info(self.logger, "Stopping and returning to IDLE")
                         log_info(self.logger, "=" * 70)
+                        
                         self.motor.stop()  # Stop before turning
-                        log_info(self.logger, "Stopping BEFORE turning AROUND AFTER REACHING HOME MARKER")
                         time.sleep(5.0)
                         self.servo.turn_left(1.0)  # Max left turn
                         self.motor.forward(config.MOTOR_TURN)
@@ -546,11 +542,6 @@ class BinDieselSystem:
                         self._transition_to(State.IDLE)
                         continue  # Skip all other processing this frame
 
-                    if hasattr(self, 'return_turn_complete'):
-                        delattr(self, 'return_turn_complete')
-                        self._transition_to(State.IDLE)
-                        time.sleep(0.05)  # Small delay to allow motor to stop
-                        continue  # Skip all other processing this frame
                     else:
                         # Other states - normal emergency stop
                         log_info(self.logger, "=" * 70)
