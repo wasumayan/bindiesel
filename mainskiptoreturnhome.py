@@ -411,12 +411,6 @@ class BinDieselSystem:
         # Step 2: Scan for home marker using ArUco marker detection
         if self.aruco_detector is None:
             log_warning(self.logger, "ArUco detector not available", "Cannot return to home")
-            self.motor.stop()
-            self.servo.center()
-            if hasattr(self, 'return_turn_complete'):
-                delattr(self, 'return_turn_complete')
-            self._transition_to(State.IDLE)
-            return
         
         try:
             frame = self.visual.get_frame()
@@ -440,25 +434,7 @@ class BinDieselSystem:
                 conditional_log(self.logger, 'info',
                               f"ArUco marker detected! ID: {tag_id}, Distance: {distance_m:.2f}m, Center: {center_x}, Centered: {is_centered}",
                               self.debug_mode)
-                
-                # Check if close enough to stop (using distance in meters)
-                stop_distance_m = getattr(config, 'HOME_MARKER_STOP_DISTANCE_M', 0.3)  # Default 30cm
-                if distance_m and distance_m < stop_distance_m:
-                    # Close enough - stop!
-                    log_info(self.logger, f"Reached home marker! Distance: {distance_m:.2f}m < {stop_distance_m}m. Stopping.")
 
-                    self.motor.stop()  # Stop before turning
-                    time.sleep(3.0)
-                    self.servo.turn_left(1.0)  # Max left turn
-                    self.motor.forward(config.MOTOR_TURN)
-                    time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
-                    self.servo.center()  # Center steering
-                    self.motor.stop()
-
-                    if hasattr(self, 'return_turn_complete'):
-                        delattr(self, 'return_turn_complete')
-                    self._transition_to(State.IDLE)
-                    return
                 
                 # Drive towards marker
                 # Use the angle calculated by ArUco detector (already in -45 to +45 range)
@@ -511,7 +487,7 @@ class BinDieselSystem:
         try:
             while self.running:
 
-                state = self.sm.get_state()
+                state = State.HOME
 
                 # SAFETY: Check TOF sensor FIRST before any other processing
                 # This ensures immediate emergency stop response
