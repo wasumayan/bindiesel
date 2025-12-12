@@ -478,9 +478,9 @@ class BinDieselSystem:
                         
                         # Adjust motor speed based on centering (same logic as main.py)
                 if is_centered:
-                    speed = config.MOTOR_SLOW
+                    speed = config.MOTOR_MEDIUM
                 else:
-                    speed = config.MOTOR_SUPER_SLOW
+                    speed = config.MOTOR_SLOW
                         
                 self.motor.forward(speed)
                 
@@ -535,12 +535,20 @@ class BinDieselSystem:
                         log_info(self.logger, "EMERGENCY STOP: TOF sensor triggered in HOME state!")
                         log_info(self.logger, "Stopping and returning to IDLE")
                         log_info(self.logger, "=" * 70)
+                        self.motor.stop()  # Stop before turning
+                        log_info(self.logger, "Stopping BEFORE turning AROUND AFTER REACHING HOME MARKER")
+                        time.sleep(5.0)
+                        self.servo.turn_left(1.0)  # Max left turn
+                        self.motor.forward(config.MOTOR_TURN)
+                        time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
+                        self.servo.center()  # Center steering
                         self.motor.stop()
-                        self.servo.center()
-                        if hasattr(self, 'return_turn_complete'):
-                            delattr(self, 'return_turn_complete')
                         self._transition_to(State.IDLE)
-                        time.sleep(0.05)  # Small delay to allow motor to stop
+                        continue  # Skip all other processing this frame
+
+                    if hasattr(self, 'return_turn_complete'):
+                        delattr(self, 'return_turn_complete')
+                    self._transition_to(State.IDLE)
                         continue  # Skip all other processing this frame
                     else:
                         # Other states - normal emergency stop
