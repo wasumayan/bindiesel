@@ -23,7 +23,7 @@ PWM_FREQUENCY_MOTOR = 40  #Hz
 PWM_FREQUENCY = 40  # Alias for motor frequency
 
 MOTOR_STOP = 100.0      # 0% duty cycle = stopped
-MOTOR_MAX = 73.80       # 100% duty cycle = maximum speed 93.7 
+MOTOR_MAX = 74.5       # 100% duty cycle = maximum speed 93.7 
 
 # Motor Speed Configuration
 FOLLOW_SPEED = 1.0  # Speed when following user (0.0-1.0)
@@ -120,7 +120,7 @@ ENABLE_FRAME_CACHING = True  # Cache frames to reduce redundant captures
 FRAME_CACHE_TTL = 0.05  # Frame cache time-to-live (seconds)
 VISUAL_UPDATE_INTERVAL = 0.033  # Visual detection update interval (seconds) - lower = higher FPS (0.033 = 30 FPS max, 0.05 = 20 FPS max)
 ENABLE_PERFORMANCE_MONITORING = True  # Track FPS and performance metrics
-FRAME_SKIP_INTERVAL = 2  # Process every Nth frame (1 = all frames, 2 = every other, etc.)
+FRAME_SKIP_INTERVAL = 3  # Process every Nth frame (1 = all frames, 2 = every other, etc.)
 
 # YOLO Performance Optimization
 YOLO_INFERENCE_SIZE = 640  # YOLO input image size (matches camera 640x480, no resize needed)
