@@ -472,12 +472,12 @@ class BinDieselSystem:
                 
                         
                         # Adjust motor speed based on centering (same logic as main.py)
-                    if is_centered:
-                        speed = config.MOTOR_SLOW
-                    else:
-                        speed = config.MOTOR_SLOW
+                if is_centered:
+                    speed = config.MOTOR_SLOW
+                else:
+                    speed = config.MOTOR_SLOW
                         
-                    self.motor.forward(speed)
+                self.motor.forward(speed)
                 
                 conditional_log(self.logger, 'debug',
                               f"Driving towards home marker: angle={angle:.1f}°, distance={distance_m:.2f}m, centered={is_centered}",
