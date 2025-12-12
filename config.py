@@ -27,9 +27,9 @@ MOTOR_MAX = 77.5       # 100% duty cycle = maximum speed 93.7
 
 # Motor Speed Configuration
 FOLLOW_SPEED = 1.0  # Speed when following user (0.0-1.0)
-MOTOR_SUPER_SLOW = 1.15  # Super slow speed for fine adjustments
-MOTOR_SLOW = 1.1  # low speed for turning
-MOTOR_MEDIUM = 1.05  # Medium speed
+MOTOR_SUPER_SLOW = 1.09  # Super slow speed for fine adjustments
+MOTOR_SLOW = 1.07  # low speed for turning
+MOTOR_MEDIUM = 1.03  # Medium speed
 MOTOR_FAST = 1.0  # Fast speed
 MOTOR_TURN = 0.85
 
