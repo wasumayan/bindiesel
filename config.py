@@ -113,7 +113,7 @@ HOME_MARKER_STOP_DISTANCE = 100  # Stop when marker is this many pixels wide (de
 HOME_MARKER_SLOW_DISTANCE = 50  # Slow down when marker is this many pixels wide (for YOLO-based detection in test_home_tracking.py)
 TURN_180_DURATION = 3  # Seconds to turn 180 degrees
 
-SLEEP_TIMER = 0.18
+SLEEP_TIMER = 0.14
 
 # Performance Configuration
 ENABLE_FRAME_CACHING = True  # Cache frames to reduce redundant captures
