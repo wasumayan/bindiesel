@@ -385,7 +385,7 @@ class BinDieselSystem:
         conditional_log(self.logger, 'info', "STOPPED: Waiting for trash collection", config.DEBUG_MODE)
         self.sleeptimer = config.SLEEP_TIMER  # reset sleep timer
 
-        wait_time = 10.0  # Wait 10 seconds for trash placement
+        wait_time = 8.0  # Wait 10 seconds for trash placement
         if self.sm.get_time_in_state() > wait_time:
             log_info(self.logger, "Trash collection complete, returning to home")
             self._transition_to(State.HOME)

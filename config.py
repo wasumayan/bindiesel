@@ -104,16 +104,16 @@ TOF_HIGH_COUNT_THRESHOLD = 1  # Number of consecutive HIGH readings required to 
 # Home Marker Configuration (for return to home)
 # ArUco Marker Configuration
 ARUCO_TAG_SIZE_M = 0.2  # Physical size of ArUco marker in meters (default: 0.047 = 47mm)
-HOME_MARKER_STOP_DISTANCE_M = 0.3  # Stop when marker is this close in meters (default: 0.3m = 30cm)
+HOME_MARKER_STOP_DISTANCE_M = 0.4  # Stop when marker is this close in meters (default: 0.3m = 30cm)
 
 # Legacy YOLO-based detection (deprecated - using ArUco now, but still used by test_home_tracking.py)
 HOME_MARKER_OBJECT_CLASS = 'box'  # YOLO object class to detect as home marker (deprecated)
 HOME_MARKER_COLOR = 'red'  # Color of home marker (deprecated - using ArUco now)
 HOME_MARKER_STOP_DISTANCE = 100  # Stop when marker is this many pixels wide (deprecated - use HOME_MARKER_STOP_DISTANCE_M)
 HOME_MARKER_SLOW_DISTANCE = 50  # Slow down when marker is this many pixels wide (for YOLO-based detection in test_home_tracking.py)
-TURN_180_DURATION = 5.9  # Seconds to turn 180 degrees
+TURN_180_DURATION = 3  # Seconds to turn 180 degrees
 
-SLEEP_TIMER = 0.2
+SLEEP_TIMER = 0.18
 
 # Performance Configuration
 ENABLE_FRAME_CACHING = True  # Cache frames to reduce redundant captures
