@@ -491,7 +491,7 @@ class BinDieselSystem:
                 # Marker not found - search by turning slowly
                 log_info(self.logger, "ArUco marker not found, searching...")
                 # Turn slowly while searching
-                self.motor.forward(config.MOTOR_SLOW)
+                self.motor.forward(config.MOTOR_MEDIUM)
                 sweep_angle = self.search_argle
                 self.servo.set_angle(sweep_angle)  # Slight left turn
                 self.search_argle = sweep_angle * -1  # Flip for next time
