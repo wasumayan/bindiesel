@@ -169,7 +169,6 @@ def check_pixy2_api():
     print()
     
     try:
-        from pixy import *
         import pixy
         
         # List all available functions
