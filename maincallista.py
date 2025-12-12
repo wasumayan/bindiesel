@@ -539,6 +539,8 @@ class BinDieselSystem:
                         time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
                         self.servo.center()  # Center steering
                         self.motor.stop()
+                        if hasattr(self, 'return_turn_complete'):
+                            delattr(self, 'return_turn_complete')
                         self._transition_to(State.IDLE)
                         continue  # Skip all other processing this frame
 
