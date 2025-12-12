@@ -447,6 +447,7 @@ class BinDieselSystem:
                     log_info(self.logger, f"Reached home marker! Distance: {distance_m:.2f}m < {stop_distance_m}m. Stopping.")
 
                     self.motor.stop()  # Stop before turning
+                    time.sleep(3.0)
                     self.servo.turn_left(1.0)  # Max left turn
                     self.motor.forward(config.MOTOR_TURN)
                     time.sleep(config.TURN_180_DURATION)  # Turn for specified duration
@@ -512,7 +513,7 @@ class BinDieselSystem:
 
                 # SAFETY: Check TOF sensor FIRST before any other processing
                 # This ensures immediate emergency stop response
-                if self.tof and self.tof.detect() and state != State.IDLE:   
+                if self.tof and self.tof.detect() and state != State.IDLE and state != State.HOME:   
                     if state == State.HOME: 
                         log_info(self.logger, "PLEASE MOVE AWAY FROM BIN DIESEL")
                         continue  # Skip all other processing this frame
