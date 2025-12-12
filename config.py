@@ -43,7 +43,7 @@ SERVO_RIGHT_MAX = 89.318
 # Visual Detection Configuration
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
-CAMERA_FPS = 40  # Target camera FPS (Raspberry Pi Camera Module 3 Wide supports up to 50 FPS at 640x480)
+CAMERA_FPS = 30  # Target camera FPS (Raspberry Pi Camera Module 3 Wide supports up to 50 FPS at 640x480)
 CAMERA_ROTATION = 180  # Rotate camera 180 degrees (0, 90, 180, 270) - set to 180 if camera is upside down
 CAMERA_FLIP_HORIZONTAL = False  # Flip horizontally (mirror)
 CAMERA_FLIP_VERTICAL = False  # Flip vertically
@@ -104,7 +104,7 @@ TOF_HIGH_COUNT_THRESHOLD = 1  # Number of consecutive HIGH readings required to 
 # Home Marker Configuration (for return to home)
 # ArUco Marker Configuration
 ARUCO_TAG_SIZE_M = 0.2  # Physical size of ArUco marker in meters (default: 0.047 = 47mm)
-HOME_MARKER_STOP_DISTANCE_M = 0.2  # Stop when marker is this close in meters (default: 0.3m = 30cm)
+HOME_MARKER_STOP_DISTANCE_M = 0.3  # Stop when marker is this close in meters (default: 0.3m = 30cm)
 
 # Legacy YOLO-based detection (deprecated - using ArUco now, but still used by test_home_tracking.py)
 HOME_MARKER_OBJECT_CLASS = 'box'  # YOLO object class to detect as home marker (deprecated)
@@ -124,7 +124,7 @@ FRAME_SKIP_INTERVAL = 2  # Process every Nth frame (1 = all frames, 2 = every ot
 
 # YOLO Performance Optimization
 YOLO_INFERENCE_SIZE = 640  # YOLO input image size (matches camera 640x480, no resize needed)
-YOLO_MAX_DET = 30  # Maximum detections per image (lower = faster, default is 300)
+YOLO_MAX_DET = 5  # Maximum detections per image (lower = faster, default is 300)
 YOLO_AGNOSTIC_NMS = True  # Class-agnostic NMS (faster, slight accuracy tradeoff)
 # Note: imgsz resizes internally - doesn't reduce field of view, but resizing has CPU overhead
 # Better to match camera resolution (640) and use other optimizations:
