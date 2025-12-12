@@ -164,7 +164,7 @@ class BinDieselSystem:
         # self.current_manual_command = None  # Current active manual command
 
         self.sleeptimer = 0.3 # for re-finding user 
-        self.search_argle = 15.0 
+        self.search_argle = 30.0 
         
         # Debug mode
         self.debug_mode = config.DEBUG_MODE
@@ -497,7 +497,7 @@ class BinDieselSystem:
                 self.search_argle = sweep_angle * -1  # Flip for next time
                 time.sleep(self.sleeptimer)
                 if self.sleeptimer < 2.0:
-                    self.sleeptimer += 0.1
+                    self.sleeptimer += 0.25
                 
         except Exception as e:
             log_error(self.logger, e, "Error in return to home detection")
