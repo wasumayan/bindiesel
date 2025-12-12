@@ -111,7 +111,7 @@ HOME_MARKER_OBJECT_CLASS = 'box'  # YOLO object class to detect as home marker (
 HOME_MARKER_COLOR = 'red'  # Color of home marker (deprecated - using ArUco now)
 HOME_MARKER_STOP_DISTANCE = 100  # Stop when marker is this many pixels wide (deprecated - use HOME_MARKER_STOP_DISTANCE_M)
 HOME_MARKER_SLOW_DISTANCE = 50  # Slow down when marker is this many pixels wide (for YOLO-based detection in test_home_tracking.py)
-TURN_180_DURATION = 3  # Seconds to turn 180 degrees
+TURN_180_DURATION = 3.4  # Seconds to turn 180 degrees
 
 SLEEP_TIMER = 0.15
 
