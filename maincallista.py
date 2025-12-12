@@ -164,6 +164,7 @@ class BinDieselSystem:
         # self.current_manual_command = None  # Current active manual command
 
         self.sleeptimer = 0.3 # for re-finding user 
+        self.search_argle = 15.0 
         
         # Debug mode
         self.debug_mode = config.DEBUG_MODE
@@ -490,9 +491,9 @@ class BinDieselSystem:
                 log_info(self.logger, "ArUco marker not found, searching...")
                 # Turn slowly while searching
                 self.motor.forward(config.MOTOR_SLOW)
-                sweep_angle = 15.0
+                sweep_angle = self.search_argle
                 self.servo.set_angle(sweep_angle)  # Slight left turn
-                sweep_angle = sweep_angle * -1  # Flip for next time
+                self.search_argle = sweep_angle * -1  # Flip for next time
                 time.sleep(self.sleeptimer)
                 if self.sleeptimer < 2.0:
                     self.sleeptimer += 0.1
