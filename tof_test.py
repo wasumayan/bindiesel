@@ -6,6 +6,7 @@ import time
 
 
 def main():
+    print("[ToF Test] Starting Time-of-Flight Sensor Test")
     tof = ToFSensor()
     servo = ServoController(
                 pwm_pin=config.SERVO_PWM_PIN,
@@ -24,7 +25,7 @@ def main():
 
     time.sleep(1)  # Allow time for initialization
     motor.forward(config.MOTOR_MAX)
-
+    print("[ToF Test] Motor started at max speed. Move an object close to the ToF sensor to test detection.")
     try:
         while True:
             if tof.detect():
