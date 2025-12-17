@@ -30,6 +30,7 @@ def main():
     print("[ToF Test] Motor started at max speed. Move an object close to the ToF sensor to test detection.")
     try:
         while True:
+            servo.set_angle(0.0)  # Keep servo centered
             if tof.detect() and flag == 0:
                 start = time.time()
                 print("[ToF Test] Obstacle detected! Stopping motor.")
