@@ -57,7 +57,7 @@ class ServoController:
 
     def center(self):
         if config.DEBUG_SERVO:
-            print("[Servo] center()")
+            print(f"{0.00:.1f}")
         self._set_duty(self.center_duty)
 
     def set_angle(self, angle_deg: float):
@@ -72,7 +72,7 @@ class ServoController:
             duty = self.center_duty + (self.left_max_duty - self.center_duty) * (angle_deg / -45.0)
 
         if config.DEBUG_SERVO:
-            print(f"[Servo] set_angle({angle_deg:.1f}) degrees -> duty = {duty:.2f}%")
+            print(f"{angle_deg:.1f}")
 
         self._set_duty(duty)
         self.last_angle = angle_deg
