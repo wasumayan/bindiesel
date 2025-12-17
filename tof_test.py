@@ -25,7 +25,7 @@ def main():
 
     time.sleep(1)  # Allow time for initialization
     start = time.time()
-    motor.forward(config.MOTOR_MAX)
+    motor.forward(config.MOTOR_FAST)
     print("[ToF Test] Motor started at max speed. Move an object close to the ToF sensor to test detection.")
     try:
         while True:
